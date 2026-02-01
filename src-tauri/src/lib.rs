@@ -6,7 +6,7 @@ mod workers;
 
 use db::Database;
 use tauri::Manager;
-use workers::SyncManager;
+use workers::{DownloadManager, SyncManager};
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -24,17 +24,26 @@ pub fn run() {
                 .app_data_dir()
                 .expect("Failed to get app data directory");
 
-            let database = Database::new(app_data_dir)
+            let database = Database::new(app_data_dir.clone())
                 .expect("Failed to initialize database");
 
             database.run_migrations()
                 .expect("Failed to run migrations");
+
+            // Initialize default app settings (library_path = app_data_dir/N3MsMediaLibrary)
+            let library_path = app_data_dir.join("N3MsMediaLibrary");
+            commands::settings::initialize_settings(&database, library_path)
+                .expect("Failed to initialize app settings");
 
             app.manage(database);
 
             // Initialize sync manager
             let sync_manager = SyncManager::new(app.handle().clone());
             app.manage(sync_manager);
+
+            // Initialize download manager
+            let download_manager = DownloadManager::new(app.handle().clone());
+            app.manage(download_manager);
 
             Ok(())
         })
@@ -58,6 +67,13 @@ pub fn run() {
             commands::sync_source,
             commands::sync_creator,
             commands::sync_all,
+            commands::get_warehouse_items_by_creator,
+            commands::create_warehouse_item,
+            commands::delete_warehouse_item,
+            commands::get_app_settings,
+            commands::update_app_settings,
+            commands::download_items,
+            commands::cancel_download,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

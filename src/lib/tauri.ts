@@ -29,4 +29,8 @@ export const api = {
     creator: (creatorId: string) => invoke<void>("sync_creator", { creatorId }),
     all: () => invoke<void>("sync_all"),
   },
+  download: {
+    items: (feedItemIds: string[]) => invoke<void>("download_items", { feedItemIds }),
+    cancel: (feedItemId: string) => invoke<void>("cancel_download", { feedItemId }),
+  },
 };

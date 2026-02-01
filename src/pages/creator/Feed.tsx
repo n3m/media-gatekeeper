@@ -7,7 +7,19 @@ import { FeedTable } from "@/components/feed/FeedTable";
 import { useFeedItems } from "@/hooks/useFeedItems";
 import { useSources } from "@/hooks/useSources";
 import { useSyncEvents, useSync } from "@/hooks/useSyncEvents";
+import { useDownloadEvents, useDownload } from "@/hooks/useDownloadEvents";
 import type { FeedItem, SyncEvent } from "@/types/feed-item";
+import type {
+  DownloadStartedEvent,
+  DownloadProgressEvent,
+  DownloadCompletedEvent,
+  DownloadErrorEvent,
+} from "@/types/download";
+
+export interface DownloadProgress {
+  percent: number;
+  speed: string;
+}
 
 interface FeedProps {
   creatorId: string;
@@ -18,6 +30,7 @@ export function Feed({ creatorId }: FeedProps) {
   const { feedItems, loading: feedLoading, error: feedError, refetch: refetchFeed } = useFeedItems(creatorId);
   const { sources, loading: sourcesLoading, error: sourcesError } = useSources(creatorId);
   const { syncCreator } = useSync();
+  const { downloadItems } = useDownload();
 
   // Filter state
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
@@ -29,6 +42,9 @@ export function Feed({ creatorId }: FeedProps) {
 
   // Sync state
   const [isSyncing, setIsSyncing] = useState(false);
+
+  // Download progress state
+  const [downloadProgress, setDownloadProgress] = useState<Map<string, DownloadProgress>>(new Map());
 
   // Handle sync events
   useSyncEvents({
@@ -47,6 +63,48 @@ export function Feed({ creatorId }: FeedProps) {
       setIsSyncing(false);
       toast.error(`Sync failed: ${event.message || "Unknown error"}`);
     }, []),
+  });
+
+  // Handle download events
+  useDownloadEvents({
+    onDownloadStarted: useCallback((event: DownloadStartedEvent) => {
+      setDownloadProgress((prev) => {
+        const next = new Map(prev);
+        next.set(event.feed_item_id, { percent: 0, speed: "" });
+        return next;
+      });
+    }, []),
+    onDownloadProgress: useCallback((event: DownloadProgressEvent) => {
+      setDownloadProgress((prev) => {
+        const next = new Map(prev);
+        next.set(event.feed_item_id, { percent: event.percent, speed: event.speed });
+        return next;
+      });
+    }, []),
+    onDownloadCompleted: useCallback((event: DownloadCompletedEvent) => {
+      setDownloadProgress((prev) => {
+        const next = new Map(prev);
+        next.delete(event.feed_item_id);
+        return next;
+      });
+      refetchFeed();
+      // Find item title for toast
+      const item = feedItems.find((i) => i.id === event.feed_item_id);
+      const title = item?.title || "Item";
+      toast.success(`Downloaded: ${title}`);
+    }, [refetchFeed, feedItems]),
+    onDownloadError: useCallback((event: DownloadErrorEvent) => {
+      setDownloadProgress((prev) => {
+        const next = new Map(prev);
+        next.delete(event.feed_item_id);
+        return next;
+      });
+      refetchFeed();
+      // Find item title for toast
+      const item = feedItems.find((i) => i.id === event.feed_item_id);
+      const title = item?.title || "Item";
+      toast.error(`Download failed for "${title}": ${event.error}`);
+    }, [refetchFeed, feedItems]),
   });
 
   // Filter feed items
@@ -95,10 +153,26 @@ export function Feed({ creatorId }: FeedProps) {
     setSearchQuery("");
   }, []);
 
-  const handleDownloadSelected = useCallback(() => {
-    // TODO: Implement download functionality
-    toast.info(`Download ${selectedIds.size} item${selectedIds.size === 1 ? "" : "s"} - Coming soon!`);
-  }, [selectedIds.size]);
+  const handleDownloadSelected = useCallback(async () => {
+    // Filter to only items that are not_downloaded
+    const idsToDownload = Array.from(selectedIds).filter((id) => {
+      const item = feedItems.find((i) => i.id === id);
+      return item?.download_status === "not_downloaded";
+    });
+
+    if (idsToDownload.length === 0) {
+      toast.info("No items to download. Selected items may already be downloaded or downloading.");
+      return;
+    }
+
+    try {
+      await downloadItems(idsToDownload);
+      toast.info(`Starting download of ${idsToDownload.length} item${idsToDownload.length === 1 ? "" : "s"}...`);
+      setSelectedIds(new Set());
+    } catch (err) {
+      toast.error(`Failed to start download: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }, [selectedIds, feedItems, downloadItems]);
 
   const handleSyncNow = useCallback(async () => {
     try {
@@ -158,6 +232,7 @@ export function Feed({ creatorId }: FeedProps) {
         selectedIds={selectedIds}
         onToggleSelect={handleToggleSelect}
         onSelectAll={handleSelectAll}
+        downloadProgress={downloadProgress}
       />
     </div>
   );

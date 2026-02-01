@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/table";
 import type { FeedItem } from "@/types/feed-item";
 import type { Source } from "@/types/source";
+import type { DownloadProgress } from "@/pages/creator/Feed";
 
 interface FeedTableProps {
   items: FeedItem[];
@@ -18,9 +19,10 @@ interface FeedTableProps {
   selectedIds: Set<string>;
   onToggleSelect: (id: string) => void;
   onSelectAll: (ids: string[]) => void;
+  downloadProgress?: Map<string, DownloadProgress>;
 }
 
-function getStatusIcon(status: FeedItem["download_status"]) {
+function getStatusIcon(status: FeedItem["download_status"], progress?: DownloadProgress) {
   switch (status) {
     case "downloaded":
       return (
@@ -36,8 +38,13 @@ function getStatusIcon(status: FeedItem["download_status"]) {
       );
     case "downloading":
       return (
-        <span title="Downloading">
+        <span title={progress ? `Downloading: ${progress.percent}%` : "Downloading"} className="flex items-center gap-1">
           <Loader2 className="h-5 w-5 text-blue-500 animate-spin" />
+          {progress && (
+            <span className="text-xs text-blue-500 font-medium">
+              {progress.percent}%
+            </span>
+          )}
         </span>
       );
     case "error":
@@ -115,6 +122,7 @@ export function FeedTable({
   selectedIds,
   onToggleSelect,
   onSelectAll,
+  downloadProgress,
 }: FeedTableProps) {
   const sourceMap = new Map(sources.map((s) => [s.id, s]));
   const allSelected = items.length > 0 && items.every((item) => selectedIds.has(item.id));
@@ -171,7 +179,7 @@ export function FeedTable({
                   aria-label={`Select ${item.title}`}
                 />
               </TableCell>
-              <TableCell>{getStatusIcon(item.download_status)}</TableCell>
+              <TableCell>{getStatusIcon(item.download_status, downloadProgress?.get(item.id))}</TableCell>
               <TableCell>
                 <div className="flex items-center gap-3">
                   <ThumbnailImage url={item.thumbnail_url} title={item.title} />
