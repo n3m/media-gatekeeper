@@ -18,6 +18,7 @@ fn greet(name: &str) -> String {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_shell::init())
         .setup(|app| {
             let app_data_dir = app
                 .path()
@@ -75,6 +76,8 @@ pub fn run() {
             commands::download_items,
             commands::cancel_download,
             commands::import_video,
+            commands::open_file_in_default_app,
+            commands::show_in_folder,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

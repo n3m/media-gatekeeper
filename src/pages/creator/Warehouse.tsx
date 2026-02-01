@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { WarehouseFilters, type WarehouseSortBy } from "@/components/warehouse/WarehouseFilters";
 import { WarehouseTable } from "@/components/warehouse/WarehouseTable";
 import { ImportVideoDialog } from "@/components/warehouse/ImportVideoDialog";
+import { VideoPlayerModal } from "@/components/player/VideoPlayerModal";
 import { useWarehouseItems } from "@/hooks/useWarehouseItems";
 import type { WarehouseItem } from "@/types/warehouse-item";
 
@@ -23,6 +24,9 @@ export function Warehouse({ creatorId }: WarehouseProps) {
 
   // Selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Video player state
+  const [selectedVideo, setSelectedVideo] = useState<WarehouseItem | null>(null);
 
   // Filter and sort items
   const filteredItems = useMemo(() => {
@@ -94,8 +98,8 @@ export function Warehouse({ creatorId }: WarehouseProps) {
     setSearchQuery("");
   }, []);
 
-  const handlePlayVideo = useCallback((_item: WarehouseItem) => {
-    toast.info("Player coming in Phase 9");
+  const handlePlayVideo = useCallback((item: WarehouseItem) => {
+    setSelectedVideo(item);
   }, []);
 
   const handleDeleteSelected = useCallback(async () => {
@@ -185,6 +189,14 @@ export function Warehouse({ creatorId }: WarehouseProps) {
         onToggleSelect={handleToggleSelect}
         onSelectAll={handleSelectAll}
         onPlayVideo={handlePlayVideo}
+      />
+
+      <VideoPlayerModal
+        item={selectedVideo}
+        open={selectedVideo !== null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedVideo(null);
+        }}
       />
     </div>
   );

@@ -41,4 +41,8 @@ export const api = {
     import: (request: { source_path: string; creator_id: string; title: string; platform?: string }) =>
       invoke<WarehouseItem>("import_video", { request }),
   },
+  shell: {
+    openInDefaultApp: (filePath: string) => invoke<void>("open_file_in_default_app", { filePath }),
+    showInFolder: (filePath: string) => invoke<void>("show_in_folder", { filePath }),
+  },
 };
