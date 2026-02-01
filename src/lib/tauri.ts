@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { Creator, CreateCreatorRequest, UpdateCreatorRequest } from "@/types/creator";
 import type { Source, CreateSourceRequest, UpdateSourceRequest } from "@/types/source";
 import type { FeedItem, CreateFeedItemRequest, UpdateFeedItemRequest, FeedItemCounts } from "@/types/feed-item";
+import type { WarehouseItem, CreateWarehouseItemRequest } from "@/types/warehouse-item";
 
 export const api = {
   creators: {
@@ -32,5 +33,12 @@ export const api = {
   download: {
     items: (feedItemIds: string[]) => invoke<void>("download_items", { feedItemIds }),
     cancel: (feedItemId: string) => invoke<void>("cancel_download", { feedItemId }),
+  },
+  warehouse: {
+    getByCreator: (creatorId: string) => invoke<WarehouseItem[]>("get_warehouse_items_by_creator", { creatorId }),
+    create: (request: CreateWarehouseItemRequest) => invoke<WarehouseItem>("create_warehouse_item", { request }),
+    delete: (id: string) => invoke<void>("delete_warehouse_item", { id }),
+    import: (request: { source_path: string; creator_id: string; title: string; platform?: string }) =>
+      invoke<WarehouseItem>("import_video", { request }),
   },
 };

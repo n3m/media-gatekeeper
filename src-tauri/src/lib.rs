@@ -74,6 +74,7 @@ pub fn run() {
             commands::update_app_settings,
             commands::download_items,
             commands::cancel_download,
+            commands::import_video,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -99,7 +99,7 @@ export function CreatorView() {
           <Feed creatorId={creator.id} />
         </TabsContent>
         <TabsContent value="warehouse">
-          <Warehouse />
+          <Warehouse creatorId={creator.id} />
         </TabsContent>
       </Tabs>
     </div>
