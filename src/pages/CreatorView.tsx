@@ -90,7 +90,7 @@ export function CreatorView() {
           <TabsTrigger value="warehouse">Warehouse</TabsTrigger>
         </TabsList>
         <TabsContent value="dashboard">
-          <Dashboard />
+          <Dashboard creatorId={creator.id} />
         </TabsContent>
         <TabsContent value="settings">
           <CreatorSettings creatorId={creator.id} />

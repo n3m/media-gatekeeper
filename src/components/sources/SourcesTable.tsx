@@ -1,4 +1,4 @@
-import { Trash2, ExternalLink } from "lucide-react";
+import { Trash2, ExternalLink, RefreshCw, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -13,10 +13,16 @@ import type { Source } from "@/types/source";
 
 interface SourcesTableProps {
   sources: Source[];
+  syncingSourceIds: Set<string>;
   onDelete: (id: string) => Promise<void>;
+  onSync: (id: string) => Promise<void>;
 }
 
-function getStatusBadge(status: Source["status"]) {
+function getStatusBadge(status: Source["status"], isSyncing: boolean) {
+  if (isSyncing) {
+    return <Badge variant="secondary"><Loader2 className="h-3 w-3 animate-spin mr-1" />Syncing</Badge>;
+  }
+
   switch (status) {
     case "validated":
       return <Badge variant="default" className="bg-green-600">Validated</Badge>;
@@ -36,7 +42,7 @@ function getPlatformBadge(platform: Source["platform"]) {
   }
 }
 
-export function SourcesTable({ sources, onDelete }: SourcesTableProps) {
+export function SourcesTable({ sources, syncingSourceIds, onDelete, onSync }: SourcesTableProps) {
   if (sources.length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground">
@@ -53,45 +59,63 @@ export function SourcesTable({ sources, onDelete }: SourcesTableProps) {
           <TableHead>Channel</TableHead>
           <TableHead>Status</TableHead>
           <TableHead>Last Synced</TableHead>
-          <TableHead className="w-[100px]">Actions</TableHead>
+          <TableHead className="w-[120px]">Actions</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
-        {sources.map((source) => (
-          <TableRow key={source.id}>
-            <TableCell>{getPlatformBadge(source.platform)}</TableCell>
-            <TableCell>
-              <div className="flex items-center gap-2">
-                <span className="truncate max-w-[300px]">
-                  {source.channel_name || source.channel_url}
-                </span>
-                <a
-                  href={source.channel_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  <ExternalLink className="h-4 w-4" />
-                </a>
-              </div>
-            </TableCell>
-            <TableCell>{getStatusBadge(source.status)}</TableCell>
-            <TableCell className="text-muted-foreground">
-              {source.last_synced_at
-                ? new Date(source.last_synced_at).toLocaleDateString()
-                : "Never"}
-            </TableCell>
-            <TableCell>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => onDelete(source.id)}
-              >
-                <Trash2 className="h-4 w-4 text-destructive" />
-              </Button>
-            </TableCell>
-          </TableRow>
-        ))}
+        {sources.map((source) => {
+          const isSyncing = syncingSourceIds.has(source.id);
+          return (
+            <TableRow key={source.id}>
+              <TableCell>{getPlatformBadge(source.platform)}</TableCell>
+              <TableCell>
+                <div className="flex items-center gap-2">
+                  <span className="truncate max-w-[300px]">
+                    {source.channel_name || source.channel_url}
+                  </span>
+                  <a
+                    href={source.channel_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                  </a>
+                </div>
+              </TableCell>
+              <TableCell>{getStatusBadge(source.status, isSyncing)}</TableCell>
+              <TableCell className="text-muted-foreground">
+                {source.last_synced_at
+                  ? new Date(source.last_synced_at).toLocaleDateString()
+                  : "Never"}
+              </TableCell>
+              <TableCell>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => onSync(source.id)}
+                    disabled={isSyncing}
+                  >
+                    {isSyncing ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4" />
+                    )}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => onDelete(source.id)}
+                    disabled={isSyncing}
+                  >
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </div>
+              </TableCell>
+            </TableRow>
+          );
+        })}
       </TableBody>
     </Table>
   );
