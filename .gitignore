@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Bundled binaries (downloaded via scripts/download-ytdlp.sh)
+src-tauri/binaries/

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { useAppSettings } from "@/hooks/useAppSettings";
+import { useCredentials } from "@/hooks/useCredentials";
 import { BASS_BOOST_PRESETS } from "@/hooks/useBassBoost";
 import { api } from "@/lib/tauri";
 import type { AppSettings } from "@/types/app-settings";
@@ -23,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { AddCredentialDialog, CredentialsList } from "@/components/credentials";
 import {
   Loader2,
   FolderOpen,
@@ -34,6 +36,7 @@ import {
   Volume2,
   Save,
   BellRing,
+  Key,
 } from "lucide-react";
 
 const QUALITY_OPTIONS = [
@@ -60,6 +63,13 @@ const THEME_OPTIONS = [
 
 export function Settings() {
   const { settings, loading, error, updateSettings } = useAppSettings();
+  const {
+    credentials,
+    loading: credentialsLoading,
+    createCredential,
+    deleteCredential,
+    setAsDefault,
+  } = useCredentials("patreon");
   const [localSettings, setLocalSettings] = useState<AppSettings | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -280,7 +290,7 @@ export function Settings() {
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              Note: Theme switching will be available in a future update
+              Choose your preferred color scheme. System follows your OS preference.
             </p>
           </div>
         </CardContent>
@@ -334,6 +344,56 @@ export function Settings() {
               Send Test Notification
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Patreon Credentials Section */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Key className="h-5 w-5" />
+                Patreon Credentials
+              </CardTitle>
+              <CardDescription>
+                Manage cookie files for Patreon access
+              </CardDescription>
+            </div>
+            <AddCredentialDialog
+              onSubmit={async (data) => {
+                try {
+                  await createCredential(data);
+                  toast.success("Credential added");
+                } catch (err) {
+                  toast.error(`Failed to add credential: ${err instanceof Error ? err.message : String(err)}`);
+                  throw err;
+                }
+              }}
+            />
+          </div>
+        </CardHeader>
+        <CardContent>
+          <CredentialsList
+            credentials={credentials}
+            loading={credentialsLoading}
+            onDelete={async (id) => {
+              try {
+                await deleteCredential(id);
+                toast.success("Credential deleted");
+              } catch (err) {
+                toast.error(`Failed to delete credential: ${err instanceof Error ? err.message : String(err)}`);
+              }
+            }}
+            onSetDefault={async (id) => {
+              try {
+                await setAsDefault(id);
+                toast.success("Default credential updated");
+              } catch (err) {
+                toast.error(`Failed to update default: ${err instanceof Error ? err.message : String(err)}`);
+              }
+            }}
+          />
         </CardContent>
       </Card>
 

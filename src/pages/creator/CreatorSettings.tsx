@@ -42,8 +42,16 @@ export function CreatorSettings({ creatorId }: CreatorSettingsProps) {
     }, [refetch]),
   });
 
-  const handleAddSource = async (platform: "youtube" | "patreon", channelUrl: string) => {
-    const source = await createSource({ platform, channel_url: channelUrl });
+  const handleAddSource = async (
+    platform: "youtube" | "patreon",
+    channelUrl: string,
+    credentialId?: string
+  ) => {
+    const source = await createSource({
+      platform,
+      channel_url: channelUrl,
+      credential_id: credentialId,
+    });
     // Automatically sync the new source
     await syncSource(source.id);
   };

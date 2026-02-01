@@ -3,7 +3,7 @@ use std::path::Path;
 use std::process::Command;
 
 #[derive(Debug, Deserialize)]
-pub struct YouTubeVideo {
+pub struct PatreonPost {
     pub id: String,
     pub title: String,
     pub thumbnail: Option<String>,
@@ -11,58 +11,74 @@ pub struct YouTubeVideo {
     pub upload_date: Option<String>,
 }
 
-pub struct YouTubeFetcher;
+pub struct PatreonFetcher;
 
-impl YouTubeFetcher {
-    /// Fetch videos from a YouTube channel URL
-    /// Returns a list of video metadata
-    pub fn fetch_channel(channel_url: &str, ytdlp_path: &Path) -> Result<Vec<YouTubeVideo>, String> {
-        // Use yt-dlp to get video list in JSON format
+impl PatreonFetcher {
+    /// Fetch posts from a Patreon creator URL using cookies for authentication
+    /// Returns a list of post metadata
+    pub fn fetch_creator(creator_url: &str, cookie_path: &str, ytdlp_path: &Path) -> Result<Vec<PatreonPost>, String> {
+        // Use yt-dlp to get post list in JSON format with cookie authentication
         // --flat-playlist: don't download, just list
         // --dump-json: output as JSON (one line per video)
         // --no-warnings: suppress warnings
-        // --playlist-end 50: limit to 50 most recent videos
+        // --cookies: use Netscape-format cookie file for authentication
+        // --playlist-end 50: limit to 50 most recent posts
         let output = Command::new(ytdlp_path)
             .args([
                 "--flat-playlist",
                 "--dump-json",
                 "--no-warnings",
-                "--playlist-end", "50",
-                channel_url,
+                "--cookies",
+                cookie_path,
+                "--playlist-end",
+                "50",
+                creator_url,
             ])
             .output()
             .map_err(|e| format!("Failed to execute yt-dlp: {}", e))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
+            // Check for common auth errors
+            if stderr.contains("Unable to download") || stderr.contains("HTTP Error 401") {
+                return Err(
+                    "Authentication failed. Please check your cookie file is valid and not expired."
+                        .to_string(),
+                );
+            }
             return Err(format!("yt-dlp failed: {}", stderr));
         }
 
         let stdout = String::from_utf8_lossy(&output.stdout);
 
         // Parse each line as a separate JSON object
-        let videos: Vec<YouTubeVideo> = stdout
+        let posts: Vec<PatreonPost> = stdout
             .lines()
             .filter(|line| !line.trim().is_empty())
             .filter_map(|line| {
                 serde_json::from_str::<serde_json::Value>(line)
                     .ok()
-                    .map(|v| YouTubeVideo {
+                    .map(|v| PatreonPost {
                         id: v["id"].as_str().unwrap_or_default().to_string(),
                         title: v["title"].as_str().unwrap_or_default().to_string(),
-                        thumbnail: v["thumbnail"].as_str().map(|s| s.to_string())
-                            .or_else(|| v["thumbnails"].as_array()
-                                .and_then(|t| t.first())
-                                .and_then(|t| t["url"].as_str())
-                                .map(|s| s.to_string())),
+                        thumbnail: v["thumbnail"]
+                            .as_str()
+                            .map(|s| s.to_string())
+                            .or_else(|| {
+                                v["thumbnails"]
+                                    .as_array()
+                                    .and_then(|t| t.first())
+                                    .and_then(|t| t["url"].as_str())
+                                    .map(|s| s.to_string())
+                            }),
                         duration: v["duration"].as_f64(),
                         upload_date: v["upload_date"].as_str().map(|s| s.to_string()),
                     })
             })
-            .filter(|v| !v.id.is_empty() && !v.title.is_empty())
+            .filter(|p| !p.id.is_empty() && !p.title.is_empty())
             .collect();
 
-        Ok(videos)
+        Ok(posts)
     }
 
     /// Convert upload_date (YYYYMMDD) to ISO 8601 format

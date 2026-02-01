@@ -6,19 +6,15 @@ A cross-platform desktop app (Windows, macOS, Linux) for managing personal media
 
 - **Node.js** 18+ and **pnpm**
 - **Rust** 1.85+ (required by Tauri 2.x dependencies)
-- **yt-dlp** - Must be installed and in PATH for YouTube sync to work
-  ```bash
-  # Install yt-dlp
-  pip install yt-dlp
-  # or on macOS
-  brew install yt-dlp
-  ```
 
 ## Development
 
 ```bash
 # Install dependencies
 pnpm install
+
+# Download yt-dlp binaries (bundled with the app)
+./scripts/download-ytdlp.sh
 
 # Run in development mode (frontend + Tauri)
 pnpm tauri dev
@@ -33,17 +29,21 @@ pnpm dev
 pnpm run build
 ```
 
+**Note:** yt-dlp is bundled with the app as a sidecar binary. Run `./scripts/download-ytdlp.sh` to download binaries for all platforms, or manually download for your platform to `src-tauri/binaries/`.
+
 ## Current Status
 
-**Phase 1-12 Complete** (Foundation + Source CRUD + Background Sync + Feed View + Download Manager + Warehouse + Video Player + Settings + FTS Search + Notifications)
+**v1.0 Feature Complete** - All planned features implemented
 
 ### What's Working
 - Creator management (create, view, delete)
 - Source management (add YouTube/Patreon channels)
-- Background sync worker (5-minute interval)
-- YouTube feed fetching via yt-dlp
+- Background sync worker (configurable interval)
+- YouTube feed fetching via bundled yt-dlp
+- **Patreon feed fetching** with cookie authentication
 - Dashboard with stats (total videos, downloaded count, sources, last sync)
 - Toast notifications for sync/download events
+- **OS notifications** for sync completion and downloads
 - Feed view with filters - Filter by source, status, search; multi-select
 - Download Manager - Queue-based downloads via yt-dlp with progress streaming
 - Real-time download progress in Feed table
@@ -65,9 +65,11 @@ pnpm run build
   - Test notification button in Settings
   - Respects notifications_enabled setting
 
-### Not Yet Implemented
-- Patreon sync (stubbed, needs cookie auth implementation)
-- Theme switching (UI exists but actual switching not implemented)
+- **Theme Switching** - Dark, Light, and System (follows OS preference)
+- **Patreon Sync** - Full Patreon support with cookie authentication
+  - Credential management in Settings (add/delete cookie files)
+  - Automatic credential selection when adding Patreon sources
+  - Uses bundled yt-dlp for fetching
 
 ## Project Structure (Actual)
 

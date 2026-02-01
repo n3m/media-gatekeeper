@@ -1,6 +1,7 @@
 use crate::commands::notifications::notify_sync_completed;
 use crate::db::Database;
-use crate::services::YouTubeFetcher;
+use crate::services::{get_ytdlp_path, PatreonFetcher, YouTubeFetcher};
+use std::path::PathBuf;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::mpsc;
@@ -138,7 +139,7 @@ impl SyncManager {
             },
         );
 
-        // Get source info
+        // Get source info including credential_id for Patreon
         let source_info = {
             let db = app_handle.state::<Database>();
             let conn = match db.conn.lock() {
@@ -150,14 +151,19 @@ impl SyncManager {
             };
 
             conn.query_row(
-                "SELECT platform, channel_url, channel_name FROM sources WHERE id = ?",
+                "SELECT platform, channel_url, channel_name, credential_id FROM sources WHERE id = ?",
                 [source_id],
-                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, Option<String>>(2)?)),
+                |row| Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, Option<String>>(2)?,
+                    row.get::<_, Option<String>>(3)?,
+                )),
             )
             .ok()
         };
 
-        let (platform, channel_url, channel_name) = match source_info {
+        let (platform, channel_url, channel_name, credential_id) = match source_info {
             Some(info) => info,
             None => {
                 Self::emit_error(app_handle, source_id, "Source not found");
@@ -172,8 +178,7 @@ impl SyncManager {
         let result = match platform.as_str() {
             "youtube" => Self::fetch_youtube(app_handle, source_id, &channel_url).await,
             "patreon" => {
-                // Patreon support will be added later
-                Ok(0)
+                Self::fetch_patreon(app_handle, source_id, &channel_url, credential_id.as_deref()).await
             }
             _ => Err("Unknown platform".to_string()),
         };
@@ -229,11 +234,16 @@ impl SyncManager {
         source_id: &str,
         channel_url: &str,
     ) -> Result<i32, String> {
+        // Get yt-dlp path
+        let ytdlp_path = get_ytdlp_path(app_handle)?;
+
         // Run yt-dlp in a blocking task to not block the async runtime
         let channel_url = channel_url.to_string();
-        let videos = tokio::task::spawn_blocking(move || YouTubeFetcher::fetch_channel(&channel_url))
-            .await
-            .map_err(|e| format!("Task panicked: {}", e))??;
+        let videos = tokio::task::spawn_blocking(move || {
+            YouTubeFetcher::fetch_channel(&channel_url, &ytdlp_path)
+        })
+        .await
+        .map_err(|e| format!("Task panicked: {}", e))??;
 
         if videos.is_empty() {
             return Ok(0);
@@ -258,6 +268,88 @@ impl SyncManager {
                 "INSERT OR IGNORE INTO feed_items (id, source_id, external_id, title, thumbnail_url, published_at, duration, download_status, created_at)
                  VALUES (?, ?, ?, ?, ?, ?, ?, 'not_downloaded', ?)",
                 (&id, source_id, &video.id, &video.title, &video.thumbnail, &published_at, &duration, &now),
+            );
+
+            if let Ok(rows) = result {
+                inserted += rows as i32;
+            }
+        }
+
+        Ok(inserted)
+    }
+
+    async fn fetch_patreon(
+        app_handle: &AppHandle,
+        source_id: &str,
+        creator_url: &str,
+        credential_id: Option<&str>,
+    ) -> Result<i32, String> {
+        // Get yt-dlp path
+        let ytdlp_path = get_ytdlp_path(app_handle)?;
+
+        // Get cookie path from credential
+        let cookie_path = match credential_id {
+            Some(cred_id) => {
+                let db = app_handle.state::<Database>();
+                let conn = db.conn.lock().map_err(|e| e.to_string())?;
+                conn.query_row(
+                    "SELECT cookie_path FROM credentials WHERE id = ?",
+                    [cred_id],
+                    |row| row.get::<_, String>(0),
+                )
+                .map_err(|_| "Credential not found".to_string())?
+            }
+            None => {
+                // Try to get default credential for patreon
+                let db = app_handle.state::<Database>();
+                let conn = db.conn.lock().map_err(|e| e.to_string())?;
+                match conn.query_row(
+                    "SELECT cookie_path FROM credentials WHERE platform = 'patreon' AND is_default = 1",
+                    [],
+                    |row| row.get::<_, String>(0),
+                ) {
+                    Ok(path) => path,
+                    Err(_) => {
+                        return Err(
+                            "No credential configured for this Patreon source. Please add a cookie file in Settings."
+                                .to_string(),
+                        )
+                    }
+                }
+            }
+        };
+
+        // Run yt-dlp in a blocking task to not block the async runtime
+        let creator_url = creator_url.to_string();
+        let posts = tokio::task::spawn_blocking(move || {
+            PatreonFetcher::fetch_creator(&creator_url, &cookie_path, &ytdlp_path)
+        })
+        .await
+        .map_err(|e| format!("Task panicked: {}", e))??;
+
+        if posts.is_empty() {
+            return Ok(0);
+        }
+
+        // Insert feed items into database
+        let db = app_handle.state::<Database>();
+        let conn = db.conn.lock().map_err(|e| e.to_string())?;
+
+        let now = chrono::Utc::now().to_rfc3339();
+        let mut inserted = 0;
+
+        for post in posts {
+            let id = uuid::Uuid::new_v4().to_string();
+            let published_at = post
+                .upload_date
+                .as_ref()
+                .and_then(|d| PatreonFetcher::parse_upload_date(d));
+            let duration = post.duration.map(|d| d as i64);
+
+            let result = conn.execute(
+                "INSERT OR IGNORE INTO feed_items (id, source_id, external_id, title, thumbnail_url, published_at, duration, download_status, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, 'not_downloaded', ?)",
+                (&id, source_id, &post.id, &post.title, &post.thumbnail, &published_at, &duration, &now),
             );
 
             if let Ok(rows) = result {

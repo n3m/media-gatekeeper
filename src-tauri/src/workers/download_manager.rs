@@ -1,7 +1,9 @@
 use crate::commands::notifications::{notify_download_completed, notify_download_failed};
 use crate::db::Database;
+use crate::services::get_ytdlp_path;
 use std::collections::HashSet;
 use std::io::{BufRead, BufReader};
+use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Manager};
@@ -173,6 +175,16 @@ impl DownloadManager {
             }
         };
 
+        // Get yt-dlp path
+        let ytdlp_path = match get_ytdlp_path(app_handle) {
+            Ok(path) => path,
+            Err(e) => {
+                Self::emit_error(app_handle, feed_item_id, &e);
+                Self::update_feed_item_status(app_handle, feed_item_id, "error");
+                return;
+            }
+        };
+
         // Run yt-dlp download
         let output_path_for_download = output_path.clone();
         let result = tokio::task::spawn_blocking({
@@ -180,7 +192,7 @@ impl DownloadManager {
             let feed_item_id = feed_item_id.to_string();
             let cancelled = cancelled.clone();
             move || {
-                Self::run_ytdlp_download(&app_handle, &feed_item_id, &video_url, &output_path_for_download, &cancelled)
+                Self::run_ytdlp_download(&app_handle, &feed_item_id, &video_url, &output_path_for_download, &cancelled, &ytdlp_path)
             }
         })
         .await;
@@ -248,8 +260,9 @@ impl DownloadManager {
         video_url: &str,
         output_path: &str,
         cancelled: &Arc<Mutex<HashSet<String>>>,
+        ytdlp_path: &PathBuf,
     ) -> Result<(), String> {
-        let mut child = Command::new("yt-dlp")
+        let mut child = Command::new(ytdlp_path)
             .args([
                 "-f",
                 "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
@@ -262,7 +275,7 @@ impl DownloadManager {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
-            .map_err(|e| format!("Failed to execute yt-dlp: {}. Is yt-dlp installed?", e))?;
+            .map_err(|e| format!("Failed to execute yt-dlp: {}", e))?;
 
         let stdout = child.stdout.take().ok_or("Failed to capture stdout")?;
         let reader = BufReader::new(stdout);

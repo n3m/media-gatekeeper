@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { Creator, CreateCreatorRequest, UpdateCreatorRequest } from "@/types/creator";
 import type { Source, CreateSourceRequest, UpdateSourceRequest } from "@/types/source";
+import type { Credential, CreateCredentialRequest, UpdateCredentialRequest } from "@/types/credential";
 import type { FeedItem, CreateFeedItemRequest, UpdateFeedItemRequest, FeedItemCounts } from "@/types/feed-item";
 import type { WarehouseItem, CreateWarehouseItemRequest } from "@/types/warehouse-item";
 import type { AppSettings, UpdateAppSettingsRequest } from "@/types/app-settings";
@@ -24,6 +25,15 @@ export const api = {
     create: (request: CreateSourceRequest) => invoke<Source>("create_source", { request }),
     update: (id: string, request: UpdateSourceRequest) => invoke<Source>("update_source", { id, request }),
     delete: (id: string) => invoke<void>("delete_source", { id }),
+  },
+  credentials: {
+    getAll: () => invoke<Credential[]>("get_credentials"),
+    getByPlatform: (platform: string) => invoke<Credential[]>("get_credentials_by_platform", { platform }),
+    get: (id: string) => invoke<Credential>("get_credential", { id }),
+    create: (request: CreateCredentialRequest) => invoke<Credential>("create_credential", { request }),
+    update: (id: string, request: UpdateCredentialRequest) => invoke<Credential>("update_credential", { id, request }),
+    delete: (id: string) => invoke<void>("delete_credential", { id }),
+    getDefault: (platform: string) => invoke<Credential | null>("get_default_credential", { platform }),
   },
   feedItems: {
     getBySource: (sourceId: string) => invoke<FeedItem[]>("get_feed_items_by_source", { sourceId }),

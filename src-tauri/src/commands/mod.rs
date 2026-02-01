@@ -1,4 +1,5 @@
 pub mod creators;
+pub mod credentials;
 pub mod download;
 pub mod feed_items;
 pub mod notifications;
@@ -10,6 +11,7 @@ pub mod sync;
 pub mod warehouse;
 
 pub use creators::*;
+pub use credentials::*;
 pub use download::*;
 pub use feed_items::*;
 pub use notifications::*;

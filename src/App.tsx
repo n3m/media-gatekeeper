@@ -7,10 +7,12 @@ import { CreatorList } from "@/pages/CreatorList";
 import { CreatorView } from "@/pages/CreatorView";
 import { Settings } from "@/pages/Settings";
 import { useAppSettings } from "@/hooks/useAppSettings";
+import { useTheme } from "@/hooks/useTheme";
 import { SetupWizard } from "@/components/setup";
 
 function App() {
   const { settings, loading, refetch } = useAppSettings();
+  const { resolvedTheme } = useTheme();
   const [showWizard, setShowWizard] = useState<boolean | null>(null);
 
   // Determine if we should show wizard after settings load
@@ -37,7 +39,7 @@ function App() {
   // Show wizard if first run not completed
   if (showWizard) {
     return (
-      <div className="min-h-screen bg-background text-foreground dark">
+      <div className={`min-h-screen bg-background text-foreground ${resolvedTheme}`}>
         <SetupWizard onComplete={handleWizardComplete} />
       </div>
     );
@@ -45,8 +47,8 @@ function App() {
 
   // Normal app
   return (
-    <div className="min-h-screen bg-background text-foreground dark">
-      <Toaster position="bottom-right" theme="dark" />
+    <div className={`min-h-screen bg-background text-foreground ${resolvedTheme}`}>
+      <Toaster position="bottom-right" theme={resolvedTheme} />
       <BrowserRouter>
         <Routes>
           <Route element={<AppShell />}>
