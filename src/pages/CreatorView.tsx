@@ -93,7 +93,7 @@ export function CreatorView() {
           <Dashboard />
         </TabsContent>
         <TabsContent value="settings">
-          <CreatorSettings />
+          <CreatorSettings creatorId={creator.id} />
         </TabsContent>
         <TabsContent value="feed">
           <Feed />
