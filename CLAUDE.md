@@ -35,7 +35,7 @@ pnpm run build
 
 ## Current Status
 
-**Phase 1-10 Complete** (Foundation + Source CRUD + Background Sync + Feed View + Download Manager + Warehouse + Video Player + Settings)
+**Phase 1-11 Complete** (Foundation + Source CRUD + Background Sync + Feed View + Download Manager + Warehouse + Video Player + Settings + FTS Search)
 
 ### What's Working
 - Creator management (create, view, delete)
@@ -55,13 +55,15 @@ pnpm run build
 - Open in Player / Show in Folder - Cross-platform shell commands
 - **Global Settings** - Library path, quality, sync interval, theme, notifications, bass boost defaults
 - **First-Time Setup Wizard** - Guided setup on first run
+- **Full-Text Search (FTS5)** - SQLite FTS5 for fast search across titles
+  - Global search in sidebar with Ctrl+K shortcut
+  - FTS-powered search in Feed and Warehouse views
+  - Automatic FTS index updates via triggers
 
 ### Not Yet Implemented
-- Warehouse view and manual import (Phase 8)
-- Video player with bass boost (Phase 9)
-- Global settings and first-time wizard (Phase 10)
-- Search with MeiliSearch (Phase 11)
+- Notifications (Phase 12)
 - Patreon sync (stubbed, needs cookie auth implementation)
+- Theme switching (UI exists but actual switching not implemented)
 
 ## Project Structure (Actual)
 
@@ -90,7 +92,8 @@ n3ms-media-gatekeeper/
 │   │   │   ├── download.rs         # Download trigger commands
 │   │   │   ├── warehouse.rs        # WarehouseItem CRUD + import
 │   │   │   ├── settings.rs         # AppSettings get/update
-│   │   │   └── shell.rs            # Open in player, show in folder
+│   │   │   ├── shell.rs            # Open in player, show in folder
+│   │   │   └── search.rs           # FTS5 search commands
 │   │   ├── workers/
 │   │   │   ├── mod.rs
 │   │   │   ├── sync_manager.rs     # Background sync with Tauri events
@@ -123,6 +126,8 @@ n3ms-media-gatekeeper/
 │   │   ├── player/
 │   │   │   ├── VideoPlayerModal.tsx # Video player with bass boost
 │   │   │   └── BassBoostPanel.tsx   # Bass boost UI controls
+│   │   ├── search/
+│   │   │   └── GlobalSearch.tsx     # Sidebar search with dropdown
 │   │   └── setup/
 │   │       └── SetupWizard.tsx      # First-time setup wizard
 │   ├── pages/
@@ -184,6 +189,11 @@ Tables in `src-tauri/src/db/migrations.rs`:
 - **credentials** - id, label, platform, cookie_path, is_default, created_at, updated_at
 - **app_settings** - Single row with library_path, default_quality, sync_interval_seconds, theme, etc.
 
+FTS5 Virtual Tables (auto-synced via triggers):
+- **feed_items_fts** - Full-text search on feed_items.title
+- **warehouse_items_fts** - Full-text search on warehouse_items.title
+- **creators_fts** - Full-text search on creators.name
+
 ## Tauri Commands (Implemented)
 
 ### Creators
@@ -230,6 +240,12 @@ Tables in `src-tauri/src/db/migrations.rs`:
 - `open_file_in_default_app(filePath)` → opens in system default player
 - `show_in_folder(filePath)` → reveals file in file manager
 
+### Search (FTS5)
+- `search_feed_items(query, creatorId?, limit?)` → `FeedItemSearchResult[]`
+- `search_warehouse_items(query, creatorId?, limit?)` → `WarehouseItemSearchResult[]`
+- `search_creators(query, limit?)` → `CreatorSearchResult[]`
+- `global_search(query, limit?)` → `GlobalSearchResults`
+
 ## Tauri Events (Backend → Frontend)
 
 ### Sync Events
@@ -259,6 +275,8 @@ Listen with `useSyncEvents`, `useDownloadEvents` hooks or `@tauri-apps/api/event
 | `useWarehouseItems(creatorId)` | Warehouse items CRUD, returns `{ warehouseItems, loading, error, refetch, deleteItem }` |
 | `useBassBoost()` | Web Audio API bass boost, returns `{ enabled, preset, customGain, connectVideo, PRESETS }` |
 | `useAppSettings()` | App settings CRUD, returns `{ settings, loading, error, refetch, updateSettings }` |
+| `useSearch()` | Global FTS search, returns `{ query, setQuery, results, loading, error, clearResults }` |
+| `useCreatorSearch(creatorId)` | Search within creator, returns `{ query, setQuery, feedItemResults, warehouseItemResults, loading, error }` |
 
 ## API Wrapper
 
