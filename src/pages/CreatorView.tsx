@@ -96,7 +96,7 @@ export function CreatorView() {
           <CreatorSettings creatorId={creator.id} />
         </TabsContent>
         <TabsContent value="feed">
-          <Feed />
+          <Feed creatorId={creator.id} />
         </TabsContent>
         <TabsContent value="warehouse">
           <Warehouse />
