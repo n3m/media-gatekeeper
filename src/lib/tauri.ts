@@ -3,6 +3,7 @@ import type { Creator, CreateCreatorRequest, UpdateCreatorRequest } from "@/type
 import type { Source, CreateSourceRequest, UpdateSourceRequest } from "@/types/source";
 import type { FeedItem, CreateFeedItemRequest, UpdateFeedItemRequest, FeedItemCounts } from "@/types/feed-item";
 import type { WarehouseItem, CreateWarehouseItemRequest } from "@/types/warehouse-item";
+import type { AppSettings, UpdateAppSettingsRequest } from "@/types/app-settings";
 
 export const api = {
   creators: {
@@ -44,5 +45,9 @@ export const api = {
   shell: {
     openInDefaultApp: (filePath: string) => invoke<void>("open_file_in_default_app", { filePath }),
     showInFolder: (filePath: string) => invoke<void>("show_in_folder", { filePath }),
+  },
+  settings: {
+    get: () => invoke<AppSettings>("get_app_settings"),
+    update: (request: UpdateAppSettingsRequest) => invoke<AppSettings>("update_app_settings", { request }),
   },
 };
