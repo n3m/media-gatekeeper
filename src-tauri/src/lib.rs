@@ -38,6 +38,10 @@ pub fn run() {
             commands::create_creator,
             commands::update_creator,
             commands::delete_creator,
+            commands::get_sources_by_creator,
+            commands::create_source,
+            commands::update_source,
+            commands::delete_source,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
