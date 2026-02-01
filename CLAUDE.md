@@ -4,7 +4,7 @@ A cross-platform desktop app (Windows, macOS, Linux) for managing personal media
 
 ## Current Status
 
-**Phase 1-3 Complete** (Foundation laid)
+**Phase 1-4 Complete** (Foundation + Source CRUD)
 
 Implemented:
 - Tauri 2.x + React 19 + Vite + TypeScript project
@@ -14,9 +14,11 @@ Implemented:
 - SQLite database with full schema (creators, sources, feed_items, warehouse_items, credentials, app_settings)
 - Creator CRUD (Rust backend commands + React frontend hooks + UI)
 - Creator individual view with tab layout (Dashboard, Settings, Feed, Warehouse placeholders)
+- Source CRUD (Rust backend + React hooks + UI in CreatorSettings tab)
+- Sources table with platform badges, status indicators, and delete action
+- Add Source dialog with YouTube/Patreon selection
 
 Next phases to implement:
-- Phase 4: Source CRUD (YouTube, Patreon channels)
 - Phase 5: Background sync workers
 - Phase 6: Feed view with filters
 - Phase 7: Download manager with yt-dlp
