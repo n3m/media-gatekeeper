@@ -35,7 +35,7 @@ pnpm run build
 
 ## Current Status
 
-**Phase 1-11 Complete** (Foundation + Source CRUD + Background Sync + Feed View + Download Manager + Warehouse + Video Player + Settings + FTS Search)
+**Phase 1-12 Complete** (Foundation + Source CRUD + Background Sync + Feed View + Download Manager + Warehouse + Video Player + Settings + FTS Search + Notifications)
 
 ### What's Working
 - Creator management (create, view, delete)
@@ -59,9 +59,13 @@ pnpm run build
   - Global search in sidebar with Ctrl+K shortcut
   - FTS-powered search in Feed and Warehouse views
   - Automatic FTS index updates via triggers
+- **OS Notifications** - Cross-platform system notifications via tauri-plugin-notification
+  - Sync completed notifications (with new item count)
+  - Download completed/failed notifications
+  - Test notification button in Settings
+  - Respects notifications_enabled setting
 
 ### Not Yet Implemented
-- Notifications (Phase 12)
 - Patreon sync (stubbed, needs cookie auth implementation)
 - Theme switching (UI exists but actual switching not implemented)
 
@@ -93,7 +97,8 @@ n3ms-media-gatekeeper/
 │   │   │   ├── warehouse.rs        # WarehouseItem CRUD + import
 │   │   │   ├── settings.rs         # AppSettings get/update
 │   │   │   ├── shell.rs            # Open in player, show in folder
-│   │   │   └── search.rs           # FTS5 search commands
+│   │   │   ├── search.rs           # FTS5 search commands
+│   │   │   └── notifications.rs    # OS notification commands
 │   │   ├── workers/
 │   │   │   ├── mod.rs
 │   │   │   ├── sync_manager.rs     # Background sync with Tauri events
@@ -245,6 +250,11 @@ FTS5 Virtual Tables (auto-synced via triggers):
 - `search_warehouse_items(query, creatorId?, limit?)` → `WarehouseItemSearchResult[]`
 - `search_creators(query, limit?)` → `CreatorSearchResult[]`
 - `global_search(query, limit?)` → `GlobalSearchResults`
+
+### Notifications
+- `check_notification_permission()` → `String` (permission state)
+- `request_notification_permission()` → `String` (permission state)
+- `send_test_notification()` → `void`
 
 ## Tauri Events (Backend → Frontend)
 
