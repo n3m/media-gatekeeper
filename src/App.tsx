@@ -1,12 +1,16 @@
-import { Button } from "@/components/ui/button";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { CreatorList } from "@/pages/CreatorList";
+import { Settings } from "@/pages/Settings";
 
 function App() {
   return (
     <div className="min-h-screen bg-background text-foreground dark">
-      <div className="flex flex-col items-center justify-center h-screen gap-4">
-        <h1 className="text-4xl font-bold">N3Ms Media Library</h1>
-        <Button>Get Started</Button>
-      </div>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<CreatorList />} />
+          <Route path="/settings" element={<Settings />} />
+        </Routes>
+      </BrowserRouter>
     </div>
   );
 }
