@@ -1,6 +1,7 @@
 import { Link, useLocation } from "react-router-dom";
 import { Home, Settings, Library } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { GlobalSearch } from "@/components/search/GlobalSearch";
 
 const navItems = [
   { path: "/", label: "Creators", icon: Home },
@@ -17,6 +18,9 @@ export function Sidebar() {
           <Library className="h-6 w-6" />
           <span className="font-semibold text-lg">N3Ms Media Library</span>
         </div>
+      </div>
+      <div className="p-3 border-b border-border">
+        <GlobalSearch />
       </div>
       <nav className="flex-1 p-2">
         {navItems.map((item) => {

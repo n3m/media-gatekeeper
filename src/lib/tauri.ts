@@ -4,6 +4,12 @@ import type { Source, CreateSourceRequest, UpdateSourceRequest } from "@/types/s
 import type { FeedItem, CreateFeedItemRequest, UpdateFeedItemRequest, FeedItemCounts } from "@/types/feed-item";
 import type { WarehouseItem, CreateWarehouseItemRequest } from "@/types/warehouse-item";
 import type { AppSettings, UpdateAppSettingsRequest } from "@/types/app-settings";
+import type {
+  FeedItemSearchResult,
+  WarehouseItemSearchResult,
+  CreatorSearchResult,
+  GlobalSearchResults,
+} from "@/types/search";
 
 export const api = {
   creators: {
@@ -49,5 +55,15 @@ export const api = {
   settings: {
     get: () => invoke<AppSettings>("get_app_settings"),
     update: (request: UpdateAppSettingsRequest) => invoke<AppSettings>("update_app_settings", { request }),
+  },
+  search: {
+    feedItems: (query: string, creatorId?: string, limit?: number) =>
+      invoke<FeedItemSearchResult[]>("search_feed_items", { query, creatorId, limit }),
+    warehouseItems: (query: string, creatorId?: string, limit?: number) =>
+      invoke<WarehouseItemSearchResult[]>("search_warehouse_items", { query, creatorId, limit }),
+    creators: (query: string, limit?: number) =>
+      invoke<CreatorSearchResult[]>("search_creators", { query, limit }),
+    global: (query: string, limit?: number) =>
+      invoke<GlobalSearchResults>("global_search", { query, limit }),
   },
 };

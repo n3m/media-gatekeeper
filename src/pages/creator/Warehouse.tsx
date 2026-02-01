@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,7 @@ import { WarehouseTable } from "@/components/warehouse/WarehouseTable";
 import { ImportVideoDialog } from "@/components/warehouse/ImportVideoDialog";
 import { VideoPlayerModal } from "@/components/player/VideoPlayerModal";
 import { useWarehouseItems } from "@/hooks/useWarehouseItems";
+import { api } from "@/lib/tauri";
 import type { WarehouseItem } from "@/types/warehouse-item";
 
 interface WarehouseProps {
@@ -28,6 +29,43 @@ export function Warehouse({ creatorId }: WarehouseProps) {
   // Video player state
   const [selectedVideo, setSelectedVideo] = useState<WarehouseItem | null>(null);
 
+  // FTS search state
+  const [searchResultIds, setSearchResultIds] = useState<Set<string> | null>(null);
+  const [_isSearching, setIsSearching] = useState(false);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Perform FTS search when query changes
+  useEffect(() => {
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+    }
+
+    if (!searchQuery.trim()) {
+      setSearchResultIds(null);
+      setIsSearching(false);
+      return;
+    }
+
+    setIsSearching(true);
+    searchDebounceRef.current = setTimeout(async () => {
+      try {
+        const results = await api.search.warehouseItems(searchQuery, creatorId, 100);
+        setSearchResultIds(new Set(results.map((r) => r.id)));
+      } catch (err) {
+        console.error("FTS search failed, falling back to local filter:", err);
+        setSearchResultIds(null);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+
+    return () => {
+      if (searchDebounceRef.current) {
+        clearTimeout(searchDebounceRef.current);
+      }
+    };
+  }, [searchQuery, creatorId]);
+
   // Filter and sort items
   const filteredItems = useMemo(() => {
     let items: WarehouseItem[] = [...warehouseItems];
@@ -44,10 +82,16 @@ export function Warehouse({ creatorId }: WarehouseProps) {
       });
     }
 
-    // Filter by search query
+    // Filter by search query using FTS results
     if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      items = items.filter((item) => item.title.toLowerCase().includes(query));
+      if (searchResultIds !== null) {
+        // Use FTS search results
+        items = items.filter((item) => searchResultIds.has(item.id));
+      } else {
+        // Fallback to local search if FTS failed
+        const query = searchQuery.toLowerCase();
+        items = items.filter((item) => item.title.toLowerCase().includes(query));
+      }
     }
 
     // Sort items
@@ -73,7 +117,7 @@ export function Warehouse({ creatorId }: WarehouseProps) {
     }
 
     return items;
-  }, [warehouseItems, selectedPlatform, sortBy, searchQuery]);
+  }, [warehouseItems, selectedPlatform, sortBy, searchQuery, searchResultIds]);
 
   // Handlers
   const handleToggleSelect = useCallback((id: string) => {

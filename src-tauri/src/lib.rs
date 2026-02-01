@@ -78,6 +78,10 @@ pub fn run() {
             commands::import_video,
             commands::open_file_in_default_app,
             commands::show_in_folder,
+            commands::search_feed_items,
+            commands::search_warehouse_items,
+            commands::search_creators,
+            commands::global_search,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

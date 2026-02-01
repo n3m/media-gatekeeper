@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { FeedFilters } from "@/components/feed/FeedFilters";
@@ -8,6 +8,7 @@ import { useFeedItems } from "@/hooks/useFeedItems";
 import { useSources } from "@/hooks/useSources";
 import { useSyncEvents, useSync } from "@/hooks/useSyncEvents";
 import { useDownloadEvents, useDownload } from "@/hooks/useDownloadEvents";
+import { api } from "@/lib/tauri";
 import type { FeedItem, SyncEvent } from "@/types/feed-item";
 import type {
   DownloadStartedEvent,
@@ -45,6 +46,44 @@ export function Feed({ creatorId }: FeedProps) {
 
   // Download progress state
   const [downloadProgress, setDownloadProgress] = useState<Map<string, DownloadProgress>>(new Map());
+
+  // FTS search state
+  const [searchResultIds, setSearchResultIds] = useState<Set<string> | null>(null);
+  const [_isSearching, setIsSearching] = useState(false);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Perform FTS search when query changes
+  useEffect(() => {
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+    }
+
+    if (!searchQuery.trim()) {
+      setSearchResultIds(null);
+      setIsSearching(false);
+      return;
+    }
+
+    setIsSearching(true);
+    searchDebounceRef.current = setTimeout(async () => {
+      try {
+        const results = await api.search.feedItems(searchQuery, creatorId, 100);
+        setSearchResultIds(new Set(results.map((r) => r.id)));
+      } catch (err) {
+        console.error("FTS search failed, falling back to local filter:", err);
+        // Fallback: use null to indicate local filtering should be used
+        setSearchResultIds(null);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+
+    return () => {
+      if (searchDebounceRef.current) {
+        clearTimeout(searchDebounceRef.current);
+      }
+    };
+  }, [searchQuery, creatorId]);
 
   // Handle sync events
   useSyncEvents({
@@ -121,14 +160,20 @@ export function Feed({ creatorId }: FeedProps) {
       items = items.filter((item) => item.download_status === selectedStatus);
     }
 
-    // Filter by search query
+    // Filter by search query using FTS results
     if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      items = items.filter((item) => item.title.toLowerCase().includes(query));
+      if (searchResultIds !== null) {
+        // Use FTS search results
+        items = items.filter((item) => searchResultIds.has(item.id));
+      } else {
+        // Fallback to local search if FTS failed
+        const query = searchQuery.toLowerCase();
+        items = items.filter((item) => item.title.toLowerCase().includes(query));
+      }
     }
 
     return items;
-  }, [feedItems, selectedSourceId, selectedStatus, searchQuery]);
+  }, [feedItems, selectedSourceId, selectedStatus, searchQuery, searchResultIds]);
 
   // Handlers
   const handleToggleSelect = useCallback((id: string) => {

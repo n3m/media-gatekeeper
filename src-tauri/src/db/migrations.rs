@@ -1,6 +1,12 @@
 use rusqlite::Connection;
 
 pub fn run_all(conn: &Connection) -> Result<(), rusqlite::Error> {
+    run_schema(conn)?;
+    rebuild_fts_indexes(conn)?;
+    Ok(())
+}
+
+fn run_schema(conn: &Connection) -> Result<(), rusqlite::Error> {
     conn.execute_batch(
         "
         CREATE TABLE IF NOT EXISTS app_settings (
@@ -85,7 +91,95 @@ pub fn run_all(conn: &Connection) -> Result<(), rusqlite::Error> {
         CREATE INDEX IF NOT EXISTS idx_feed_items_source ON feed_items(source_id);
         CREATE INDEX IF NOT EXISTS idx_feed_items_download_status ON feed_items(download_status);
         CREATE INDEX IF NOT EXISTS idx_warehouse_items_creator ON warehouse_items(creator_id);
+
+        -- FTS5 virtual tables for full-text search (standalone, not content-linked)
+        CREATE VIRTUAL TABLE IF NOT EXISTS feed_items_fts USING fts5(
+            id UNINDEXED,
+            title
+        );
+
+        CREATE VIRTUAL TABLE IF NOT EXISTS warehouse_items_fts USING fts5(
+            id UNINDEXED,
+            title
+        );
+
+        CREATE VIRTUAL TABLE IF NOT EXISTS creators_fts USING fts5(
+            id UNINDEXED,
+            name
+        );
+
+        -- Triggers to keep feed_items_fts in sync
+        CREATE TRIGGER IF NOT EXISTS feed_items_fts_ai AFTER INSERT ON feed_items BEGIN
+            INSERT INTO feed_items_fts(id, title) VALUES (NEW.id, NEW.title);
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS feed_items_fts_ad AFTER DELETE ON feed_items BEGIN
+            DELETE FROM feed_items_fts WHERE id = OLD.id;
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS feed_items_fts_au AFTER UPDATE ON feed_items BEGIN
+            DELETE FROM feed_items_fts WHERE id = OLD.id;
+            INSERT INTO feed_items_fts(id, title) VALUES (NEW.id, NEW.title);
+        END;
+
+        -- Triggers to keep warehouse_items_fts in sync
+        CREATE TRIGGER IF NOT EXISTS warehouse_items_fts_ai AFTER INSERT ON warehouse_items BEGIN
+            INSERT INTO warehouse_items_fts(id, title) VALUES (NEW.id, NEW.title);
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS warehouse_items_fts_ad AFTER DELETE ON warehouse_items BEGIN
+            DELETE FROM warehouse_items_fts WHERE id = OLD.id;
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS warehouse_items_fts_au AFTER UPDATE ON warehouse_items BEGIN
+            DELETE FROM warehouse_items_fts WHERE id = OLD.id;
+            INSERT INTO warehouse_items_fts(id, title) VALUES (NEW.id, NEW.title);
+        END;
+
+        -- Triggers to keep creators_fts in sync
+        CREATE TRIGGER IF NOT EXISTS creators_fts_ai AFTER INSERT ON creators BEGIN
+            INSERT INTO creators_fts(id, name) VALUES (NEW.id, NEW.name);
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS creators_fts_ad AFTER DELETE ON creators BEGIN
+            DELETE FROM creators_fts WHERE id = OLD.id;
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS creators_fts_au AFTER UPDATE ON creators BEGIN
+            DELETE FROM creators_fts WHERE id = OLD.id;
+            INSERT INTO creators_fts(id, name) VALUES (NEW.id, NEW.name);
+        END;
         "
+    )?;
+
+    Ok(())
+}
+
+/// Rebuild FTS indexes from existing data.
+/// This is safe to run multiple times - it only inserts missing entries.
+fn rebuild_fts_indexes(conn: &Connection) -> Result<(), rusqlite::Error> {
+    // Populate feed_items_fts with any missing entries
+    conn.execute(
+        "INSERT INTO feed_items_fts(id, title)
+         SELECT id, title FROM feed_items
+         WHERE id NOT IN (SELECT id FROM feed_items_fts)",
+        [],
+    )?;
+
+    // Populate warehouse_items_fts with any missing entries
+    conn.execute(
+        "INSERT INTO warehouse_items_fts(id, title)
+         SELECT id, title FROM warehouse_items
+         WHERE id NOT IN (SELECT id FROM warehouse_items_fts)",
+        [],
+    )?;
+
+    // Populate creators_fts with any missing entries
+    conn.execute(
+        "INSERT INTO creators_fts(id, name)
+         SELECT id, name FROM creators
+         WHERE id NOT IN (SELECT id FROM creators_fts)",
+        [],
     )?;
 
     Ok(())
