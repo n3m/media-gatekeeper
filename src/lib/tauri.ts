@@ -66,4 +66,9 @@ export const api = {
     global: (query: string, limit?: number) =>
       invoke<GlobalSearchResults>("global_search", { query, limit }),
   },
+  notifications: {
+    checkPermission: () => invoke<string>("check_notification_permission"),
+    requestPermission: () => invoke<string>("request_notification_permission"),
+    sendTest: () => invoke<void>("send_test_notification"),
+  },
 };

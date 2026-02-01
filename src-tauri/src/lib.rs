@@ -19,6 +19,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             let app_data_dir = app
                 .path()
@@ -82,6 +83,9 @@ pub fn run() {
             commands::search_warehouse_items,
             commands::search_creators,
             commands::global_search,
+            commands::check_notification_permission,
+            commands::request_notification_permission,
+            commands::send_test_notification,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

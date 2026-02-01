@@ -1,3 +1,4 @@
+use crate::commands::notifications::{notify_download_completed, notify_download_failed};
 use crate::db::Database;
 use std::collections::HashSet;
 use std::io::{BufRead, BufReader};
@@ -197,6 +198,9 @@ impl DownloadManager {
                         // Update feed item with warehouse_item_id and status
                         Self::update_feed_item_completed(app_handle, feed_item_id, &warehouse_item_id);
 
+                        // Send OS notification
+                        notify_download_completed(app_handle, &info.title);
+
                         let _ = app_handle.emit(
                             "download_completed",
                             DownloadCompletedEvent {
@@ -206,17 +210,27 @@ impl DownloadManager {
                         );
                     }
                     Err(e) => {
+                        // Send OS notification for failure
+                        notify_download_failed(app_handle, &info.title, &e);
+
                         Self::emit_error(app_handle, feed_item_id, &e);
                         Self::update_feed_item_status(app_handle, feed_item_id, "error");
                     }
                 }
             }
             Ok(Err(e)) => {
+                // Send OS notification for failure
+                notify_download_failed(app_handle, &info.title, &e);
+
                 Self::emit_error(app_handle, feed_item_id, &e);
                 Self::update_feed_item_status(app_handle, feed_item_id, "error");
             }
             Err(e) => {
-                Self::emit_error(app_handle, feed_item_id, &format!("Task panicked: {}", e));
+                let err_msg = format!("Task panicked: {}", e);
+                // Send OS notification for failure
+                notify_download_failed(app_handle, &info.title, &err_msg);
+
+                Self::emit_error(app_handle, feed_item_id, &err_msg);
                 Self::update_feed_item_status(app_handle, feed_item_id, "error");
             }
         }

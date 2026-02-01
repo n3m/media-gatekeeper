@@ -1,3 +1,4 @@
+use crate::commands::notifications::notify_sync_completed;
 use crate::db::Database;
 use crate::services::YouTubeFetcher;
 use std::time::Duration;
@@ -149,20 +150,23 @@ impl SyncManager {
             };
 
             conn.query_row(
-                "SELECT platform, channel_url FROM sources WHERE id = ?",
+                "SELECT platform, channel_url, channel_name FROM sources WHERE id = ?",
                 [source_id],
-                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, Option<String>>(2)?)),
             )
             .ok()
         };
 
-        let (platform, channel_url) = match source_info {
+        let (platform, channel_url, channel_name) = match source_info {
             Some(info) => info,
             None => {
                 Self::emit_error(app_handle, source_id, "Source not found");
                 return;
             }
         };
+
+        // Use channel_name or fall back to channel_url for notification
+        let source_display_name = channel_name.unwrap_or_else(|| channel_url.clone());
 
         // Fetch based on platform
         let result = match platform.as_str() {
@@ -185,6 +189,9 @@ impl SyncManager {
                         (&now, source_id),
                     );
                 }
+
+                // Send OS notification
+                notify_sync_completed(app_handle, &source_display_name, new_items);
 
                 let _ = app_handle.emit(
                     "sync_completed",

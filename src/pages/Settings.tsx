@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { useAppSettings } from "@/hooks/useAppSettings";
 import { BASS_BOOST_PRESETS } from "@/hooks/useBassBoost";
+import { api } from "@/lib/tauri";
 import type { AppSettings } from "@/types/app-settings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,6 +33,7 @@ import {
   Bell,
   Volume2,
   Save,
+  BellRing,
 } from "lucide-react";
 
 const QUALITY_OPTIONS = [
@@ -302,7 +304,7 @@ export function Settings() {
                 Enable Notifications
               </Label>
               <p className="text-sm text-muted-foreground">
-                Receive notifications for downloads and sync updates
+                Receive OS notifications for downloads and sync updates
               </p>
             </div>
             <Switch
@@ -314,6 +316,23 @@ export function Settings() {
                 )
               }
             />
+          </div>
+          <div className="pt-2 border-t">
+            <Button
+              variant="outline"
+              onClick={async () => {
+                try {
+                  await api.notifications.requestPermission();
+                  await api.notifications.sendTest();
+                  toast.success("Test notification sent");
+                } catch (err) {
+                  toast.error(`Failed to send test notification: ${err instanceof Error ? err.message : String(err)}`);
+                }
+              }}
+            >
+              <BellRing className="h-4 w-4 mr-2" />
+              Send Test Notification
+            </Button>
           </div>
         </CardContent>
       </Card>
