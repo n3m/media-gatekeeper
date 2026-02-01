@@ -35,7 +35,7 @@ pnpm run build
 
 ## Current Status
 
-**Phase 1-5 Complete** (Foundation + Source CRUD + Background Sync)
+**Phase 1-6 Complete** (Foundation + Source CRUD + Background Sync + Feed View)
 
 ### What's Working
 - Creator management (create, view, delete)
@@ -44,9 +44,9 @@ pnpm run build
 - YouTube feed fetching via yt-dlp (metadata only, no downloads yet)
 - Dashboard with stats (total videos, downloaded count, sources, last sync)
 - Toast notifications for sync events
+- **Feed view with filters** - Filter by source, status, search; multi-select; Sync Now button
 
 ### Not Yet Implemented
-- Feed view with filters (Phase 6)
 - Download manager (Phase 7)
 - Warehouse view and manual import (Phase 8)
 - Video player with bass boost (Phase 9)
@@ -93,9 +93,13 @@ n3ms-media-gatekeeper/
 │   │   ├── creators/
 │   │   │   ├── CreatorCard.tsx     # Creator grid card
 │   │   │   └── CreateCreatorDialog.tsx
-│   │   └── sources/
-│   │       ├── AddSourceDialog.tsx # Add YouTube/Patreon source
-│   │       └── SourcesTable.tsx    # Sources list with sync controls
+│   │   ├── sources/
+│   │   │   ├── AddSourceDialog.tsx # Add YouTube/Patreon source
+│   │   │   └── SourcesTable.tsx    # Sources list with sync controls
+│   │   └── feed/
+│   │       ├── FeedTable.tsx       # Feed items table with selection
+│   │       ├── FeedFilters.tsx     # Source, status, search filters
+│   │       └── FeedActions.tsx     # Download Selected, Sync Now
 │   ├── pages/
 │   │   ├── CreatorList.tsx         # Home page - creator grid
 │   │   ├── CreatorView.tsx         # Individual creator with tabs
@@ -103,7 +107,7 @@ n3ms-media-gatekeeper/
 │   │   └── creator/
 │   │       ├── Dashboard.tsx       # Stats cards
 │   │       ├── CreatorSettings.tsx # Source management
-│   │       ├── Feed.tsx            # Feed view (placeholder)
+│   │       ├── Feed.tsx            # Feed view with filters and selection
 │   │       └── Warehouse.tsx       # Downloaded media (placeholder)
 │   ├── hooks/
 │   │   ├── useCreators.ts          # Creator CRUD hook
