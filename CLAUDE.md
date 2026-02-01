@@ -4,22 +4,27 @@ A cross-platform desktop app (Windows, macOS, Linux) for managing personal media
 
 ## Current Status
 
-**Phase 1-4 Complete** (Foundation + Source CRUD)
+**Phase 1-5 Complete** (Foundation + Source CRUD + Background Sync)
 
 Implemented:
 - Tauri 2.x + React 19 + Vite + TypeScript project
 - Tailwind CSS v4 with dark mode
-- shadcn/ui components (button, card, dialog, tabs, avatar, etc.)
+- shadcn/ui components (button, card, dialog, tabs, avatar, table, etc.)
 - React Router with app shell layout and sidebar
 - SQLite database with full schema (creators, sources, feed_items, warehouse_items, credentials, app_settings)
 - Creator CRUD (Rust backend commands + React frontend hooks + UI)
-- Creator individual view with tab layout (Dashboard, Settings, Feed, Warehouse placeholders)
+- Creator individual view with tab layout (Dashboard, Settings, Feed, Warehouse)
 - Source CRUD (Rust backend + React hooks + UI in CreatorSettings tab)
-- Sources table with platform badges, status indicators, and delete action
+- Sources table with platform badges, status indicators, sync button, and delete action
 - Add Source dialog with YouTube/Patreon selection
+- Background sync worker infrastructure with Tauri events
+- YouTube feed fetcher using yt-dlp (fetches video metadata without downloading)
+- FeedItem CRUD backend with batch insert and counts
+- Sync event listeners (sync_started, sync_completed, sync_error)
+- Dashboard with stats cards (total videos, downloaded, sources, last sync)
+- Toast notifications using sonner
 
 Next phases to implement:
-- Phase 5: Background sync workers
 - Phase 6: Feed view with filters
 - Phase 7: Download manager with yt-dlp
 - Phase 8: Warehouse view and manual import
