@@ -2,6 +2,30 @@
 
 A cross-platform desktop app (Windows, macOS, Linux) for managing personal media libraries organized by creator.
 
+## Current Status
+
+**Phase 1-3 Complete** (Foundation laid)
+
+Implemented:
+- Tauri 2.x + React 19 + Vite + TypeScript project
+- Tailwind CSS v4 with dark mode
+- shadcn/ui components (button, card, dialog, tabs, avatar, etc.)
+- React Router with app shell layout and sidebar
+- SQLite database with full schema (creators, sources, feed_items, warehouse_items, credentials, app_settings)
+- Creator CRUD (Rust backend commands + React frontend hooks + UI)
+- Creator individual view with tab layout (Dashboard, Settings, Feed, Warehouse placeholders)
+
+Next phases to implement:
+- Phase 4: Source CRUD (YouTube, Patreon channels)
+- Phase 5: Background sync workers
+- Phase 6: Feed view with filters
+- Phase 7: Download manager with yt-dlp
+- Phase 8: Warehouse view and manual import
+- Phase 9: Video player with bass boost
+- Phase 10: Global settings and first-time wizard
+- Phase 11: MeiliSearch integration
+- Phase 12: Notifications
+
 ## Design Document
 
 Full design specification: [docs/plans/2026-01-31-n3ms-media-library-design.md](docs/plans/2026-01-31-n3ms-media-library-design.md)
