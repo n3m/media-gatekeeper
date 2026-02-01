@@ -42,6 +42,12 @@ pub fn run() {
             commands::create_source,
             commands::update_source,
             commands::delete_source,
+            commands::get_feed_items_by_source,
+            commands::get_feed_items_by_creator,
+            commands::create_feed_item,
+            commands::create_feed_items_batch,
+            commands::update_feed_item,
+            commands::get_feed_item_counts,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
