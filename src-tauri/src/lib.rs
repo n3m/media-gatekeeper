@@ -1,9 +1,11 @@
 mod commands;
 mod db;
 mod models;
+mod workers;
 
 use db::Database;
 use tauri::Manager;
+use workers::SyncManager;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -29,6 +31,10 @@ pub fn run() {
 
             app.manage(database);
 
+            // Initialize sync manager
+            let sync_manager = SyncManager::new(app.handle().clone());
+            app.manage(sync_manager);
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -48,6 +54,9 @@ pub fn run() {
             commands::create_feed_items_batch,
             commands::update_feed_item,
             commands::get_feed_item_counts,
+            commands::sync_source,
+            commands::sync_creator,
+            commands::sync_all,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
