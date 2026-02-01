@@ -1,4 +1,5 @@
 use crate::db::Database;
+use crate::services::YouTubeFetcher;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::mpsc;
@@ -16,6 +17,7 @@ pub struct SyncManager {
     tx: mpsc::Sender<SyncCommand>,
 }
 
+#[allow(dead_code)]
 pub enum SyncCommand {
     SyncSource(String),
     SyncAllForCreator(String),
@@ -105,20 +107,6 @@ impl SyncManager {
             .unwrap_or_default()
     }
 
-    /// Update source last_synced_at timestamp
-    fn update_source_last_synced(app_handle: &AppHandle, source_id: &str) {
-        let db = app_handle.state::<Database>();
-        let conn = match db.conn.lock() {
-            Ok(c) => c,
-            Err(_) => return,
-        };
-        let now = chrono::Utc::now().to_rfc3339();
-        let _ = conn.execute(
-            "UPDATE sources SET last_synced_at = ?, status = 'validated' WHERE id = ?",
-            (&now, source_id),
-        );
-    }
-
     async fn do_sync_all_sources(app_handle: &AppHandle) {
         // Collect source IDs first (synchronous, releases lock before await)
         let source_ids = Self::get_all_source_ids(app_handle);
@@ -149,21 +137,138 @@ impl SyncManager {
             },
         );
 
-        // TODO: In Task 5.3, this will call the actual YouTube/Patreon fetcher
-        // For now, we just emit a completed event after a short delay
-        tokio::time::sleep(Duration::from_millis(500)).await;
+        // Get source info
+        let source_info = {
+            let db = app_handle.state::<Database>();
+            let conn = match db.conn.lock() {
+                Ok(c) => c,
+                Err(_) => {
+                    Self::emit_error(app_handle, source_id, "Failed to lock database");
+                    return;
+                }
+            };
 
-        // Update source last_synced_at (synchronous database operation)
-        Self::update_source_last_synced(app_handle, source_id);
+            conn.query_row(
+                "SELECT platform, channel_url FROM sources WHERE id = ?",
+                [source_id],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+            )
+            .ok()
+        };
 
-        // Emit sync completed event
+        let (platform, channel_url) = match source_info {
+            Some(info) => info,
+            None => {
+                Self::emit_error(app_handle, source_id, "Source not found");
+                return;
+            }
+        };
+
+        // Fetch based on platform
+        let result = match platform.as_str() {
+            "youtube" => Self::fetch_youtube(app_handle, source_id, &channel_url).await,
+            "patreon" => {
+                // Patreon support will be added later
+                Ok(0)
+            }
+            _ => Err("Unknown platform".to_string()),
+        };
+
+        match result {
+            Ok(new_items) => {
+                // Update source last_synced_at and status
+                let db = app_handle.state::<Database>();
+                if let Ok(conn) = db.conn.lock() {
+                    let now = chrono::Utc::now().to_rfc3339();
+                    let _ = conn.execute(
+                        "UPDATE sources SET last_synced_at = ?, status = 'validated' WHERE id = ?",
+                        (&now, source_id),
+                    );
+                }
+
+                let _ = app_handle.emit(
+                    "sync_completed",
+                    SyncEvent {
+                        source_id: source_id.to_string(),
+                        status: "completed".to_string(),
+                        message: Some(format!("Found {} new items", new_items)),
+                        new_items: Some(new_items),
+                    },
+                );
+            }
+            Err(error) => {
+                Self::emit_error(app_handle, source_id, &error);
+
+                // Update source status to error
+                Self::update_source_status_error(app_handle, source_id);
+            }
+        }
+    }
+
+    fn update_source_status_error(app_handle: &AppHandle, source_id: &str) {
+        let db = app_handle.state::<Database>();
+        let conn = match db.conn.lock() {
+            Ok(c) => c,
+            Err(_) => return,
+        };
+        let _ = conn.execute(
+            "UPDATE sources SET status = 'error' WHERE id = ?",
+            [source_id],
+        );
+    }
+
+    async fn fetch_youtube(
+        app_handle: &AppHandle,
+        source_id: &str,
+        channel_url: &str,
+    ) -> Result<i32, String> {
+        // Run yt-dlp in a blocking task to not block the async runtime
+        let channel_url = channel_url.to_string();
+        let videos = tokio::task::spawn_blocking(move || YouTubeFetcher::fetch_channel(&channel_url))
+            .await
+            .map_err(|e| format!("Task panicked: {}", e))??;
+
+        if videos.is_empty() {
+            return Ok(0);
+        }
+
+        // Insert feed items into database
+        let db = app_handle.state::<Database>();
+        let conn = db.conn.lock().map_err(|e| e.to_string())?;
+
+        let now = chrono::Utc::now().to_rfc3339();
+        let mut inserted = 0;
+
+        for video in videos {
+            let id = uuid::Uuid::new_v4().to_string();
+            let published_at = video
+                .upload_date
+                .as_ref()
+                .and_then(|d| YouTubeFetcher::parse_upload_date(d));
+            let duration = video.duration.map(|d| d as i64);
+
+            let result = conn.execute(
+                "INSERT OR IGNORE INTO feed_items (id, source_id, external_id, title, thumbnail_url, published_at, duration, download_status, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, 'not_downloaded', ?)",
+                (&id, source_id, &video.id, &video.title, &video.thumbnail, &published_at, &duration, &now),
+            );
+
+            if let Ok(rows) = result {
+                inserted += rows as i32;
+            }
+        }
+
+        Ok(inserted)
+    }
+
+    fn emit_error(app_handle: &AppHandle, source_id: &str, message: &str) {
         let _ = app_handle.emit(
-            "sync_completed",
+            "sync_error",
             SyncEvent {
                 source_id: source_id.to_string(),
-                status: "completed".to_string(),
-                message: Some("Sync completed".to_string()),
-                new_items: Some(0), // Will be updated when actual fetching is implemented
+                status: "error".to_string(),
+                message: Some(message.to_string()),
+                new_items: None,
             },
         );
     }

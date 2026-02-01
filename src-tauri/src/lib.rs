@@ -1,6 +1,7 @@
 mod commands;
 mod db;
 mod models;
+mod services;
 mod workers;
 
 use db::Database;
