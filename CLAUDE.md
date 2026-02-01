@@ -35,19 +35,21 @@ pnpm run build
 
 ## Current Status
 
-**Phase 1-6 Complete** (Foundation + Source CRUD + Background Sync + Feed View)
+**Phase 1-7 Complete** (Foundation + Source CRUD + Background Sync + Feed View + Download Manager)
 
 ### What's Working
 - Creator management (create, view, delete)
 - Source management (add YouTube/Patreon channels)
 - Background sync worker (5-minute interval)
-- YouTube feed fetching via yt-dlp (metadata only, no downloads yet)
+- YouTube feed fetching via yt-dlp
 - Dashboard with stats (total videos, downloaded count, sources, last sync)
-- Toast notifications for sync events
-- **Feed view with filters** - Filter by source, status, search; multi-select; Sync Now button
+- Toast notifications for sync/download events
+- Feed view with filters - Filter by source, status, search; multi-select
+- **Download Manager** - Queue-based downloads via yt-dlp with progress streaming
+- Real-time download progress in Feed table
+- WarehouseItem created on download completion
 
 ### Not Yet Implemented
-- Download manager (Phase 7)
 - Warehouse view and manual import (Phase 8)
 - Video player with bass boost (Phase 9)
 - Global settings and first-time wizard (Phase 10)
@@ -69,16 +71,22 @@ n3ms-media-gatekeeper/
 │   │   │   ├── mod.rs
 │   │   │   ├── creator.rs          # Creator struct + request types
 │   │   │   ├── source.rs           # Source struct + request types
-│   │   │   └── feed_item.rs        # FeedItem struct + request types
+│   │   │   ├── feed_item.rs        # FeedItem struct + request types
+│   │   │   ├── warehouse_item.rs   # WarehouseItem struct + request types
+│   │   │   └── app_settings.rs     # AppSettings struct + request types
 │   │   ├── commands/
 │   │   │   ├── mod.rs
 │   │   │   ├── creators.rs         # Creator CRUD commands
 │   │   │   ├── sources.rs          # Source CRUD commands
 │   │   │   ├── feed_items.rs       # FeedItem CRUD + counts
-│   │   │   └── sync.rs             # Sync trigger commands
+│   │   │   ├── sync.rs             # Sync trigger commands
+│   │   │   ├── download.rs         # Download trigger commands
+│   │   │   ├── warehouse.rs        # WarehouseItem CRUD
+│   │   │   └── settings.rs         # AppSettings get/update
 │   │   ├── workers/
 │   │   │   ├── mod.rs
-│   │   │   └── sync_manager.rs     # Background sync with Tauri events
+│   │   │   ├── sync_manager.rs     # Background sync with Tauri events
+│   │   │   └── download_manager.rs # Download queue with progress
 │   │   └── services/
 │   │       ├── mod.rs
 │   │       └── youtube.rs          # yt-dlp integration
@@ -113,11 +121,13 @@ n3ms-media-gatekeeper/
 │   │   ├── useCreators.ts          # Creator CRUD hook
 │   │   ├── useSources.ts           # Source CRUD hook
 │   │   ├── useFeedItems.ts         # Feed items + counts hook
-│   │   └── useSyncEvents.ts        # Tauri event listeners + sync triggers
+│   │   ├── useSyncEvents.ts        # Tauri event listeners + sync triggers
+│   │   └── useDownloadEvents.ts    # Download event listeners + triggers
 │   ├── types/
 │   │   ├── creator.ts
 │   │   ├── source.ts
-│   │   └── feed-item.ts
+│   │   ├── feed-item.ts
+│   │   └── download.ts             # Download event types
 │   ├── lib/
 │   │   ├── tauri.ts                # Tauri invoke wrapper (api object)
 │   │   └── utils.ts                # cn() helper for Tailwind
@@ -180,13 +190,33 @@ Tables in `src-tauri/src/db/migrations.rs`:
 - `sync_creator(creatorId)` → syncs all sources for creator
 - `sync_all` → syncs all sources
 
+### Download
+- `download_items(feedItemIds: Vec<String>)` → queue items for download
+- `cancel_download(feedItemId)` → cancel a download
+
+### Warehouse
+- `get_warehouse_items_by_creator(creatorId)` → `WarehouseItem[]`
+- `create_warehouse_item(request)` → `WarehouseItem`
+- `delete_warehouse_item(id)` → `void`
+
+### Settings
+- `get_app_settings()` → `AppSettings`
+- `update_app_settings(request)` → `AppSettings`
+
 ## Tauri Events (Backend → Frontend)
 
+### Sync Events
 - `sync_started` - `{ source_id, status: "started", message, new_items }`
 - `sync_completed` - `{ source_id, status: "completed", message, new_items }`
 - `sync_error` - `{ source_id, status: "error", message, new_items }`
 
-Listen with `useSyncEvents` hook or `@tauri-apps/api/event`.
+### Download Events
+- `download_started` - `{ feed_item_id }`
+- `download_progress` - `{ feed_item_id, percent, speed }`
+- `download_completed` - `{ feed_item_id, warehouse_item_id }`
+- `download_error` - `{ feed_item_id, error }`
+
+Listen with `useSyncEvents`, `useDownloadEvents` hooks or `@tauri-apps/api/event`.
 
 ## React Hooks
 
@@ -197,6 +227,8 @@ Listen with `useSyncEvents` hook or `@tauri-apps/api/event`.
 | `useFeedItems(creatorId)` | Feed items + counts, returns `{ feedItems, counts, loading, error, refetch }` |
 | `useSyncEvents(options)` | Listen to sync events with callbacks `{ onSyncStarted, onSyncCompleted, onSyncError }` |
 | `useSync()` | Trigger syncs, returns `{ syncSource, syncCreator, syncAll }` |
+| `useDownloadEvents(options)` | Listen to download events with callbacks `{ onDownloadStarted, onDownloadProgress, onDownloadCompleted, onDownloadError }` |
+| `useDownload()` | Trigger downloads, returns `{ downloadItems, cancelDownload }` |
 
 ## API Wrapper
 
