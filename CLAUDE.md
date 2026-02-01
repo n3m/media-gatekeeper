@@ -35,7 +35,7 @@ pnpm run build
 
 ## Current Status
 
-**Phase 1-8 Complete** (Foundation + Source CRUD + Background Sync + Feed View + Download Manager + Warehouse)
+**Phase 1-9 Complete** (Foundation + Source CRUD + Background Sync + Feed View + Download Manager + Warehouse + Video Player)
 
 ### What's Working
 - Creator management (create, view, delete)
@@ -47,9 +47,12 @@ pnpm run build
 - Feed view with filters - Filter by source, status, search; multi-select
 - Download Manager - Queue-based downloads via yt-dlp with progress streaming
 - Real-time download progress in Feed table
-- **Warehouse view** - View downloaded videos with filters, sorting, search
-- **Manual import** - Import local video files via file picker
+- Warehouse view - View downloaded videos with filters, sorting, search
+- Manual import - Import local video files via file picker
 - Multi-select and bulk delete in Warehouse
+- **Video Player** - Built-in player with HTML5 video element
+- **Bass Boost** - Web Audio API with lowshelf filter @ 800Hz, presets + custom slider
+- **Open in Player / Show in Folder** - Cross-platform shell commands
 
 ### Not Yet Implemented
 - Warehouse view and manual import (Phase 8)
@@ -83,8 +86,9 @@ n3ms-media-gatekeeper/
 │   │   │   ├── feed_items.rs       # FeedItem CRUD + counts
 │   │   │   ├── sync.rs             # Sync trigger commands
 │   │   │   ├── download.rs         # Download trigger commands
-│   │   │   ├── warehouse.rs        # WarehouseItem CRUD
-│   │   │   └── settings.rs         # AppSettings get/update
+│   │   │   ├── warehouse.rs        # WarehouseItem CRUD + import
+│   │   │   ├── settings.rs         # AppSettings get/update
+│   │   │   └── shell.rs            # Open in player, show in folder
 │   │   ├── workers/
 │   │   │   ├── mod.rs
 │   │   │   ├── sync_manager.rs     # Background sync with Tauri events
@@ -110,10 +114,13 @@ n3ms-media-gatekeeper/
 │   │   │   ├── FeedTable.tsx       # Feed items table with selection
 │   │   │   ├── FeedFilters.tsx     # Source, status, search filters
 │   │   │   └── FeedActions.tsx     # Download Selected, Sync Now
-│   │   └── warehouse/
-│   │       ├── WarehouseTable.tsx  # Warehouse items table
-│   │       ├── WarehouseFilters.tsx # Platform, sort, search filters
-│   │       └── ImportVideoDialog.tsx # Manual video import
+│   │   ├── warehouse/
+│   │   │   ├── WarehouseTable.tsx  # Warehouse items table
+│   │   │   ├── WarehouseFilters.tsx # Platform, sort, search filters
+│   │   │   └── ImportVideoDialog.tsx # Manual video import
+│   │   └── player/
+│   │       ├── VideoPlayerModal.tsx # Video player with bass boost
+│   │       └── BassBoostPanel.tsx   # Bass boost UI controls
 │   ├── pages/
 │   │   ├── CreatorList.tsx         # Home page - creator grid
 │   │   ├── CreatorView.tsx         # Individual creator with tabs
@@ -129,7 +136,8 @@ n3ms-media-gatekeeper/
 │   │   ├── useFeedItems.ts         # Feed items + counts hook
 │   │   ├── useSyncEvents.ts        # Tauri event listeners + sync triggers
 │   │   ├── useDownloadEvents.ts    # Download event listeners + triggers
-│   │   └── useWarehouseItems.ts    # Warehouse items CRUD hook
+│   │   ├── useWarehouseItems.ts    # Warehouse items CRUD hook
+│   │   └── useBassBoost.ts         # Web Audio API bass boost hook
 │   ├── types/
 │   │   ├── creator.ts
 │   │   ├── source.ts
@@ -212,6 +220,10 @@ Tables in `src-tauri/src/db/migrations.rs`:
 - `get_app_settings()` → `AppSettings`
 - `update_app_settings(request)` → `AppSettings`
 
+### Shell
+- `open_file_in_default_app(filePath)` → opens in system default player
+- `show_in_folder(filePath)` → reveals file in file manager
+
 ## Tauri Events (Backend → Frontend)
 
 ### Sync Events
@@ -239,6 +251,7 @@ Listen with `useSyncEvents`, `useDownloadEvents` hooks or `@tauri-apps/api/event
 | `useDownloadEvents(options)` | Listen to download events with callbacks `{ onDownloadStarted, onDownloadProgress, onDownloadCompleted, onDownloadError }` |
 | `useDownload()` | Trigger downloads, returns `{ downloadItems, cancelDownload }` |
 | `useWarehouseItems(creatorId)` | Warehouse items CRUD, returns `{ warehouseItems, loading, error, refetch, deleteItem }` |
+| `useBassBoost()` | Web Audio API bass boost, returns `{ enabled, preset, customGain, connectVideo, PRESETS }` |
 
 ## API Wrapper
 
