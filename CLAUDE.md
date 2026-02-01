@@ -35,7 +35,7 @@ pnpm run build
 
 ## Current Status
 
-**Phase 1-7 Complete** (Foundation + Source CRUD + Background Sync + Feed View + Download Manager)
+**Phase 1-8 Complete** (Foundation + Source CRUD + Background Sync + Feed View + Download Manager + Warehouse)
 
 ### What's Working
 - Creator management (create, view, delete)
@@ -45,9 +45,11 @@ pnpm run build
 - Dashboard with stats (total videos, downloaded count, sources, last sync)
 - Toast notifications for sync/download events
 - Feed view with filters - Filter by source, status, search; multi-select
-- **Download Manager** - Queue-based downloads via yt-dlp with progress streaming
+- Download Manager - Queue-based downloads via yt-dlp with progress streaming
 - Real-time download progress in Feed table
-- WarehouseItem created on download completion
+- **Warehouse view** - View downloaded videos with filters, sorting, search
+- **Manual import** - Import local video files via file picker
+- Multi-select and bulk delete in Warehouse
 
 ### Not Yet Implemented
 - Warehouse view and manual import (Phase 8)
@@ -104,10 +106,14 @@ n3ms-media-gatekeeper/
 │   │   ├── sources/
 │   │   │   ├── AddSourceDialog.tsx # Add YouTube/Patreon source
 │   │   │   └── SourcesTable.tsx    # Sources list with sync controls
-│   │   └── feed/
-│   │       ├── FeedTable.tsx       # Feed items table with selection
-│   │       ├── FeedFilters.tsx     # Source, status, search filters
-│   │       └── FeedActions.tsx     # Download Selected, Sync Now
+│   │   ├── feed/
+│   │   │   ├── FeedTable.tsx       # Feed items table with selection
+│   │   │   ├── FeedFilters.tsx     # Source, status, search filters
+│   │   │   └── FeedActions.tsx     # Download Selected, Sync Now
+│   │   └── warehouse/
+│   │       ├── WarehouseTable.tsx  # Warehouse items table
+│   │       ├── WarehouseFilters.tsx # Platform, sort, search filters
+│   │       └── ImportVideoDialog.tsx # Manual video import
 │   ├── pages/
 │   │   ├── CreatorList.tsx         # Home page - creator grid
 │   │   ├── CreatorView.tsx         # Individual creator with tabs
@@ -116,18 +122,20 @@ n3ms-media-gatekeeper/
 │   │       ├── Dashboard.tsx       # Stats cards
 │   │       ├── CreatorSettings.tsx # Source management
 │   │       ├── Feed.tsx            # Feed view with filters and selection
-│   │       └── Warehouse.tsx       # Downloaded media (placeholder)
+│   │       └── Warehouse.tsx       # Warehouse with filters, import, delete
 │   ├── hooks/
 │   │   ├── useCreators.ts          # Creator CRUD hook
 │   │   ├── useSources.ts           # Source CRUD hook
 │   │   ├── useFeedItems.ts         # Feed items + counts hook
 │   │   ├── useSyncEvents.ts        # Tauri event listeners + sync triggers
-│   │   └── useDownloadEvents.ts    # Download event listeners + triggers
+│   │   ├── useDownloadEvents.ts    # Download event listeners + triggers
+│   │   └── useWarehouseItems.ts    # Warehouse items CRUD hook
 │   ├── types/
 │   │   ├── creator.ts
 │   │   ├── source.ts
 │   │   ├── feed-item.ts
-│   │   └── download.ts             # Download event types
+│   │   ├── download.ts             # Download event types
+│   │   └── warehouse-item.ts       # WarehouseItem type
 │   ├── lib/
 │   │   ├── tauri.ts                # Tauri invoke wrapper (api object)
 │   │   └── utils.ts                # cn() helper for Tailwind
@@ -198,6 +206,7 @@ Tables in `src-tauri/src/db/migrations.rs`:
 - `get_warehouse_items_by_creator(creatorId)` → `WarehouseItem[]`
 - `create_warehouse_item(request)` → `WarehouseItem`
 - `delete_warehouse_item(id)` → `void`
+- `import_video(request)` → `WarehouseItem` (manual import)
 
 ### Settings
 - `get_app_settings()` → `AppSettings`
@@ -229,6 +238,7 @@ Listen with `useSyncEvents`, `useDownloadEvents` hooks or `@tauri-apps/api/event
 | `useSync()` | Trigger syncs, returns `{ syncSource, syncCreator, syncAll }` |
 | `useDownloadEvents(options)` | Listen to download events with callbacks `{ onDownloadStarted, onDownloadProgress, onDownloadCompleted, onDownloadError }` |
 | `useDownload()` | Trigger downloads, returns `{ downloadItems, cancelDownload }` |
+| `useWarehouseItems(creatorId)` | Warehouse items CRUD, returns `{ warehouseItems, loading, error, refetch, deleteItem }` |
 
 ## API Wrapper
 
