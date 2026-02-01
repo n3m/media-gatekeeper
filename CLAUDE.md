@@ -35,7 +35,7 @@ pnpm run build
 
 ## Current Status
 
-**Phase 1-9 Complete** (Foundation + Source CRUD + Background Sync + Feed View + Download Manager + Warehouse + Video Player)
+**Phase 1-10 Complete** (Foundation + Source CRUD + Background Sync + Feed View + Download Manager + Warehouse + Video Player + Settings)
 
 ### What's Working
 - Creator management (create, view, delete)
@@ -50,9 +50,11 @@ pnpm run build
 - Warehouse view - View downloaded videos with filters, sorting, search
 - Manual import - Import local video files via file picker
 - Multi-select and bulk delete in Warehouse
-- **Video Player** - Built-in player with HTML5 video element
-- **Bass Boost** - Web Audio API with lowshelf filter @ 800Hz, presets + custom slider
-- **Open in Player / Show in Folder** - Cross-platform shell commands
+- Video Player - Built-in player with HTML5 video element
+- Bass Boost - Web Audio API with lowshelf filter @ 800Hz, presets + custom slider
+- Open in Player / Show in Folder - Cross-platform shell commands
+- **Global Settings** - Library path, quality, sync interval, theme, notifications, bass boost defaults
+- **First-Time Setup Wizard** - Guided setup on first run
 
 ### Not Yet Implemented
 - Warehouse view and manual import (Phase 8)
@@ -118,9 +120,11 @@ n3ms-media-gatekeeper/
 │   │   │   ├── WarehouseTable.tsx  # Warehouse items table
 │   │   │   ├── WarehouseFilters.tsx # Platform, sort, search filters
 │   │   │   └── ImportVideoDialog.tsx # Manual video import
-│   │   └── player/
-│   │       ├── VideoPlayerModal.tsx # Video player with bass boost
-│   │       └── BassBoostPanel.tsx   # Bass boost UI controls
+│   │   ├── player/
+│   │   │   ├── VideoPlayerModal.tsx # Video player with bass boost
+│   │   │   └── BassBoostPanel.tsx   # Bass boost UI controls
+│   │   └── setup/
+│   │       └── SetupWizard.tsx      # First-time setup wizard
 │   ├── pages/
 │   │   ├── CreatorList.tsx         # Home page - creator grid
 │   │   ├── CreatorView.tsx         # Individual creator with tabs
@@ -137,13 +141,15 @@ n3ms-media-gatekeeper/
 │   │   ├── useSyncEvents.ts        # Tauri event listeners + sync triggers
 │   │   ├── useDownloadEvents.ts    # Download event listeners + triggers
 │   │   ├── useWarehouseItems.ts    # Warehouse items CRUD hook
-│   │   └── useBassBoost.ts         # Web Audio API bass boost hook
+│   │   ├── useBassBoost.ts         # Web Audio API bass boost hook
+│   │   └── useAppSettings.ts       # App settings hook
 │   ├── types/
 │   │   ├── creator.ts
 │   │   ├── source.ts
 │   │   ├── feed-item.ts
 │   │   ├── download.ts             # Download event types
-│   │   └── warehouse-item.ts       # WarehouseItem type
+│   │   ├── warehouse-item.ts       # WarehouseItem type
+│   │   └── app-settings.ts         # AppSettings type
 │   ├── lib/
 │   │   ├── tauri.ts                # Tauri invoke wrapper (api object)
 │   │   └── utils.ts                # cn() helper for Tailwind
@@ -252,6 +258,7 @@ Listen with `useSyncEvents`, `useDownloadEvents` hooks or `@tauri-apps/api/event
 | `useDownload()` | Trigger downloads, returns `{ downloadItems, cancelDownload }` |
 | `useWarehouseItems(creatorId)` | Warehouse items CRUD, returns `{ warehouseItems, loading, error, refetch, deleteItem }` |
 | `useBassBoost()` | Web Audio API bass boost, returns `{ enabled, preset, customGain, connectVideo, PRESETS }` |
+| `useAppSettings()` | App settings CRUD, returns `{ settings, loading, error, refetch, updateSettings }` |
 
 ## API Wrapper
 
