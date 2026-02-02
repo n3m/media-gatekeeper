@@ -93,9 +93,13 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
   };
 
   const handleSelectLibraryPath = async () => {
-    const { open } = await import("@tauri-apps/plugin-dialog");
-    const selected = await open({ directory: true });
-    if (selected) setLibraryPath(selected as string);
+    try {
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const selected = await open({ directory: true });
+      if (selected) setLibraryPath(selected as string);
+    } catch (error) {
+      console.error("Failed to open folder picker:", error);
+    }
   };
 
   const currentStep = STEPS[step];

@@ -28,4 +28,5 @@ chrono = { version = "0.4", features = ["serde"] }
 tokio = { version = "1", features = ["sync", "time", "macros", "rt-multi-thread"] }
 tauri-plugin-shell = "2"
 tauri-plugin-notification = "2"
+tauri-plugin-dialog = "2"
 
