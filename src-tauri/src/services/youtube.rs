@@ -56,16 +56,35 @@ impl YouTubeFetcher {
             .filter_map(|line| {
                 serde_json::from_str::<serde_json::Value>(line)
                     .ok()
-                    .map(|v| YouTubeVideo {
-                        id: v["id"].as_str().unwrap_or_default().to_string(),
-                        title: v["title"].as_str().unwrap_or_default().to_string(),
-                        thumbnail: v["thumbnail"].as_str().map(|s| s.to_string())
-                            .or_else(|| v["thumbnails"].as_array()
-                                .and_then(|t| t.first())
-                                .and_then(|t| t["url"].as_str())
-                                .map(|s| s.to_string())),
-                        duration: v["duration"].as_f64(),
-                        upload_date: v["upload_date"].as_str().map(|s| s.to_string()),
+                    .map(|v| {
+                        // Try multiple date fields - flat-playlist may use timestamp instead of upload_date
+                        let upload_date = v["upload_date"]
+                            .as_str()
+                            .map(|s| s.to_string())
+                            .or_else(|| {
+                                // Try timestamp (Unix seconds) and convert to YYYYMMDD
+                                v["timestamp"]
+                                    .as_i64()
+                                    .or_else(|| v["release_timestamp"].as_i64())
+                                    .map(|ts| {
+                                        chrono::DateTime::from_timestamp(ts, 0)
+                                            .map(|dt| dt.format("%Y%m%d").to_string())
+                                            .unwrap_or_default()
+                                    })
+                                    .filter(|s| !s.is_empty())
+                            });
+
+                        YouTubeVideo {
+                            id: v["id"].as_str().unwrap_or_default().to_string(),
+                            title: v["title"].as_str().unwrap_or_default().to_string(),
+                            thumbnail: v["thumbnail"].as_str().map(|s| s.to_string())
+                                .or_else(|| v["thumbnails"].as_array()
+                                    .and_then(|t| t.first())
+                                    .and_then(|t| t["url"].as_str())
+                                    .map(|s| s.to_string())),
+                            duration: v["duration"].as_f64(),
+                            upload_date,
+                        }
                     })
             })
             .filter(|v| !v.id.is_empty() && !v.title.is_empty())
