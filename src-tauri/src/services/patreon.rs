@@ -32,10 +32,10 @@ impl PatreonFetcher {
 
         // Use yt-dlp to get post list in JSON format with cookie authentication
         // --flat-playlist: don't download, just list
-        // --dump-json: output as JSON (one line per video)
+        // --dump-json: output as JSON (one line per post)
         // --no-warnings: suppress warnings
         // --cookies: use Netscape-format cookie file for authentication
-        // --playlist-end 50: limit to 50 most recent posts
+        // No playlist limit - fetch all posts
         let mut cmd = Command::new(ytdlp_path);
         cmd.args([
             "--flat-playlist",
@@ -43,8 +43,6 @@ impl PatreonFetcher {
             "--no-warnings",
             "--cookies",
             cookie_path,
-            "--playlist-end",
-            "50",
             &url,
         ]);
 

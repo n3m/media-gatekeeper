@@ -27,13 +27,12 @@ impl YouTubeFetcher {
         // --flat-playlist: don't download, just list
         // --dump-json: output as JSON (one line per video)
         // --no-warnings: suppress warnings
-        // --playlist-end 50: limit to 50 most recent videos
+        // No playlist limit - fetch all videos
         let mut cmd = Command::new(ytdlp_path);
         cmd.args([
             "--flat-playlist",
             "--dump-json",
             "--no-warnings",
-            "--playlist-end", "50",
             channel_url,
         ]);
 
