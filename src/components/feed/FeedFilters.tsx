@@ -1,4 +1,4 @@
-import { Search, X } from "lucide-react";
+import { Search, X, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -9,6 +9,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { Source } from "@/types/source";
+import { cn } from "@/lib/utils";
 
 export type FeedItemStatus =
   | "not_downloaded"
@@ -52,6 +53,15 @@ export function FeedFilters({
 
   return (
     <div className="flex flex-wrap items-center gap-3">
+      {/* Filter icon indicator */}
+      <div className={cn(
+        "flex items-center gap-2 text-sm",
+        hasActiveFilters ? "text-glow" : "text-muted-foreground"
+      )}>
+        <Filter className="h-4 w-4" />
+        <span className="hidden sm:inline">Filters</span>
+      </div>
+
       {/* Source Filter */}
       <Select
         value={selectedSourceId ?? "all"}
@@ -59,10 +69,13 @@ export function FeedFilters({
           onSourceChange(value === "all" ? null : value)
         }
       >
-        <SelectTrigger className="w-[200px]">
+        <SelectTrigger className={cn(
+          "w-[180px] bg-surface border-border/50",
+          selectedSourceId && "border-glow/30 text-glow"
+        )}>
           <SelectValue placeholder="All Sources" />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="glass border-border/50">
           <SelectItem value="all">All Sources</SelectItem>
           {sources.map((source) => (
             <SelectItem key={source.id} value={source.id}>
@@ -79,10 +92,13 @@ export function FeedFilters({
           onStatusChange(value === "all" ? null : value)
         }
       >
-        <SelectTrigger className="w-[180px]">
+        <SelectTrigger className={cn(
+          "w-[160px] bg-surface border-border/50",
+          selectedStatus && "border-glow/30 text-glow"
+        )}>
           <SelectValue placeholder="All Statuses" />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="glass border-border/50">
           {STATUS_OPTIONS.map((option) => (
             <SelectItem key={option.value} value={option.value}>
               {option.label}
@@ -92,15 +108,28 @@ export function FeedFilters({
       </Select>
 
       {/* Search Input */}
-      <div className="relative flex-1 min-w-[200px] max-w-[300px]">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+      <div className="relative flex-1 min-w-[180px] max-w-[280px]">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
         <Input
           type="text"
-          placeholder="Search by title..."
+          placeholder="Search titles..."
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="pl-9"
+          className={cn(
+            "pl-9 bg-surface border-border/50",
+            searchQuery && "border-glow/30"
+          )}
         />
+        {searchQuery && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onSearchChange("")}
+            className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 p-0 hover:bg-transparent"
+          >
+            <X className="h-3 w-3" />
+          </Button>
+        )}
       </div>
 
       {/* Clear Filters Button */}
@@ -109,10 +138,10 @@ export function FeedFilters({
           variant="ghost"
           size="sm"
           onClick={onClearFilters}
-          className="text-muted-foreground hover:text-foreground"
+          className="text-muted-foreground hover:text-glow hover:bg-glow/10"
         >
-          <X className="h-4 w-4 mr-1" />
-          Clear filters
+          <X className="h-4 w-4 mr-1.5" />
+          Clear
         </Button>
       )}
     </div>

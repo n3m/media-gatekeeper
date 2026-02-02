@@ -4,7 +4,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 
 export function AppShell() {
   return (
-    <div className="flex h-screen">
+    <div className="flex h-screen noise">
       <Sidebar />
       <main className="flex-1 overflow-hidden">
         <ScrollArea className="h-full">

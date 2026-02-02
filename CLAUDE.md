@@ -193,6 +193,115 @@ n3ms-media-gatekeeper/
 | Package Manager | pnpm |
 | Notifications | sonner |
 
+## Design System: "Vault"
+
+The UI follows a premium, editorial aesthetic inspired by curated media archives. The design feels like a personal vault of treasures — sophisticated yet approachable.
+
+### Design Philosophy
+
+- **Tone:** Premium, editorial, sophisticated — like a Criterion Collection meets modern streaming app
+- **Differentiator:** Feels like a *personal archive* you'd be proud to show off
+- **Approach:** Refined minimalism with strategic use of accent colors and subtle animations
+
+### Color Palette
+
+**Dark Theme (Primary):**
+| Token | HSL | Description |
+|-------|-----|-------------|
+| `--background` | 240 15% 6% | Deep obsidian base |
+| `--card` | 240 12% 9% | Elevated surface |
+| `--surface` | 240 12% 11% | Interactive surfaces |
+| `--surface-elevated` | 240 10% 14% | Hover states |
+| `--glow` | 36 100% 50% | Warm amber accent |
+| `--foreground` | 40 20% 98% | Primary text (off-white) |
+| `--muted-foreground` | 240 5% 55% | Secondary text |
+
+**Light Theme:**
+| Token | HSL | Description |
+|-------|-----|-------------|
+| `--background` | 40 20% 98% | Warm cream base |
+| `--card` | 40 15% 96% | Subtle card surface |
+| `--glow` | 36 100% 50% | Same amber accent |
+| `--foreground` | 240 10% 10% | Dark text |
+
+**Platform Colors:**
+- YouTube: `0 84% 60%` (red)
+- Patreon: `24 100% 50%` (orange)
+- Manual: `270 60% 55%` (purple)
+
+### Typography
+
+- **Display/Headers:** `Outfit` — geometric sans with personality
+- **Body/UI:** `Plus Jakarta Sans` — humanist sans, excellent readability
+- **Letter spacing:** `-0.02em` on headings for tighter feel
+
+### Visual Signature Elements
+
+1. **Glassmorphism:** Sidebar and dropdowns use `glass` utility with blur + gradient
+2. **Glow effects:** Active states have amber glow (`glow-sm`, `glow-md`, `glow-lg`)
+3. **Card lift:** Hover states lift cards with shadow and scale (`card-lift` class)
+4. **Progress rings:** Circular SVG progress indicators instead of linear bars
+5. **Stagger animations:** Page elements cascade in with `stagger-1` through `stagger-8`
+6. **Noise texture:** Subtle overlay via `noise` class for depth
+7. **Gradient borders:** `glow-border` class for glowing edge effects
+
+### Animation Classes
+
+| Class | Effect |
+|-------|--------|
+| `animate-fade-in` | Simple opacity fade |
+| `animate-fade-up` | Fade + slide up (primary entrance) |
+| `animate-fade-down` | Fade + slide down (headers) |
+| `animate-scale-in` | Fade + scale from 95% |
+| `animate-slide-in-left/right` | Horizontal slide entrances |
+| `animate-pulse-glow` | Breathing glow effect |
+| `animate-count-up` | Number reveal animation |
+
+### Component Patterns
+
+**Cards:**
+```tsx
+<Card className="border-border/50 bg-card/50 hover:bg-card transition-colors">
+```
+
+**Buttons (Primary):**
+```tsx
+<Button className="bg-glow hover:bg-glow/90 text-glow-foreground shadow-lg shadow-glow/20">
+```
+
+**Inputs:**
+```tsx
+<Input className="bg-surface border-border/50 focus-visible:ring-glow/30 focus-visible:border-glow/30" />
+```
+
+**Selected States:**
+```tsx
+<div className={cn(isSelected && "bg-glow/5 border-l-2 border-l-glow")}>
+```
+
+### Utility Classes
+
+| Class | Purpose |
+|-------|---------|
+| `glass` | Glassmorphism effect with blur |
+| `glass-subtle` | Lighter glass effect |
+| `glow-border` | Gradient border glow |
+| `glow-sm/md/lg` | Box shadow glow levels |
+| `noise` | Subtle noise texture overlay |
+| `card-lift` | Hover lift + shadow effect |
+| `tilt-card` | 3D tilt on hover |
+| `gradient-text` | Animated gradient text |
+| `shimmer` | Loading shimmer effect |
+| `fade-mask-bottom/right` | Fade out masks |
+
+### Icons
+
+Using Lucide React throughout. Key icon usage:
+- **Status:** CheckCircle2 (success), Circle (pending), Loader2 (loading), XCircle (error)
+- **Platform:** No icons, use colored badges instead
+- **Navigation:** Home, Settings, ArrowLeft, ChevronRight
+- **Actions:** Download, RefreshCw, Trash2, Plus, Save
+
 ## Database Schema
 
 Tables in `src-tauri/src/db/migrations.rs`:

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus } from "lucide-react";
+import { Plus, Loader2, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -8,6 +8,7 @@ import {
   DialogTitle,
   DialogTrigger,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,34 +41,59 @@ export function CreateCreatorDialog({ onSubmit }: CreateCreatorDialogProps) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>
+        <Button className="bg-glow hover:bg-glow/90 text-glow-foreground shadow-lg shadow-glow/20 hover:shadow-glow/30 transition-all">
           <Plus className="h-4 w-4 mr-2" />
           Add Creator
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="glass border-border/50 sm:max-w-md">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>Add New Creator</DialogTitle>
+            <div className="mx-auto w-12 h-12 rounded-xl bg-glow/10 flex items-center justify-center mb-2">
+              <UserPlus className="h-6 w-6 text-glow" />
+            </div>
+            <DialogTitle className="text-center font-display text-xl">Add New Creator</DialogTitle>
+            <DialogDescription className="text-center">
+              Start tracking content from a new creator
+            </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
+          <div className="py-6">
             <div className="space-y-2">
-              <Label htmlFor="name">Name</Label>
+              <Label htmlFor="name" className="text-sm font-medium">
+                Creator Name
+              </Label>
               <Input
                 id="name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Enter creator name"
                 autoFocus
+                className="h-11 bg-surface border-border/50 focus-visible:ring-glow/30 focus-visible:border-glow/30"
               />
             </div>
           </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setOpen(false)}
+              className="flex-1 sm:flex-none"
+            >
               Cancel
             </Button>
-            <Button type="submit" disabled={!name.trim() || loading}>
-              {loading ? "Creating..." : "Create"}
+            <Button
+              type="submit"
+              disabled={!name.trim() || loading}
+              className="flex-1 sm:flex-none bg-glow hover:bg-glow/90 text-glow-foreground"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                "Create"
+              )}
             </Button>
           </DialogFooter>
         </form>
