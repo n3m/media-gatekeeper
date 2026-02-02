@@ -23,6 +23,13 @@ impl PatreonFetcher {
     /// Fetch posts from a Patreon creator URL using cookies for authentication
     /// Returns a list of post metadata
     pub fn fetch_creator(creator_url: &str, cookie_path: &str, ytdlp_path: &Path) -> Result<Vec<PatreonPost>, String> {
+        // Ensure URL ends with /posts for proper playlist extraction
+        let url = if creator_url.ends_with("/posts") {
+            creator_url.to_string()
+        } else {
+            format!("{}/posts", creator_url.trim_end_matches('/'))
+        };
+
         // Use yt-dlp to get post list in JSON format with cookie authentication
         // --flat-playlist: don't download, just list
         // --dump-json: output as JSON (one line per video)
@@ -38,7 +45,7 @@ impl PatreonFetcher {
             cookie_path,
             "--playlist-end",
             "50",
-            creator_url,
+            &url,
         ]);
 
         #[cfg(target_os = "windows")]
@@ -72,30 +79,74 @@ impl PatreonFetcher {
         }
 
         // Parse each line as a separate JSON object
+        // Patreon format differs from YouTube - uses webpage_url_basename instead of title
         let posts: Vec<PatreonPost> = stdout
             .lines()
             .filter(|line| !line.trim().is_empty())
             .filter_map(|line| {
                 serde_json::from_str::<serde_json::Value>(line)
                     .ok()
-                    .map(|v| PatreonPost {
-                        id: v["id"].as_str().unwrap_or_default().to_string(),
-                        title: v["title"].as_str().unwrap_or_default().to_string(),
-                        thumbnail: v["thumbnail"]
+                    .and_then(|v| {
+                        let id = v["id"].as_str().unwrap_or_default().to_string();
+                        if id.is_empty() {
+                            return None;
+                        }
+
+                        // Try to get title, fall back to webpage_url_basename
+                        let title = v["title"]
                             .as_str()
                             .map(|s| s.to_string())
                             .or_else(|| {
-                                v["thumbnails"]
-                                    .as_array()
-                                    .and_then(|t| t.first())
-                                    .and_then(|t| t["url"].as_str())
-                                    .map(|s| s.to_string())
-                            }),
-                        duration: v["duration"].as_f64(),
-                        upload_date: v["upload_date"].as_str().map(|s| s.to_string()),
+                                // Extract title from webpage_url_basename (e.g., "lollipop-sucking-23710390")
+                                v["webpage_url_basename"].as_str().map(|basename| {
+                                    // Remove the trailing ID (last segment after final dash if it's numeric)
+                                    let parts: Vec<&str> = basename.rsplitn(2, '-').collect();
+                                    let title_slug = if parts.len() == 2 && parts[0].parse::<u64>().is_ok() {
+                                        parts[1]
+                                    } else {
+                                        basename
+                                    };
+                                    // Convert dashes to spaces and capitalize
+                                    title_slug
+                                        .replace('-', " ")
+                                        .split_whitespace()
+                                        .map(|word| {
+                                            let mut chars = word.chars();
+                                            match chars.next() {
+                                                None => String::new(),
+                                                Some(first) => {
+                                                    first.to_uppercase().chain(chars).collect()
+                                                }
+                                            }
+                                        })
+                                        .collect::<Vec<_>>()
+                                        .join(" ")
+                                })
+                            })
+                            .unwrap_or_default();
+
+                        if title.is_empty() {
+                            return None;
+                        }
+
+                        Some(PatreonPost {
+                            id,
+                            title,
+                            thumbnail: v["thumbnail"]
+                                .as_str()
+                                .map(|s| s.to_string())
+                                .or_else(|| {
+                                    v["thumbnails"]
+                                        .as_array()
+                                        .and_then(|t| t.first())
+                                        .and_then(|t| t["url"].as_str())
+                                        .map(|s| s.to_string())
+                                }),
+                            duration: v["duration"].as_f64(),
+                            upload_date: v["upload_date"].as_str().map(|s| s.to_string()),
+                        })
                     })
             })
-            .filter(|p| !p.id.is_empty() && !p.title.is_empty())
             .collect();
 
         Ok(posts)
