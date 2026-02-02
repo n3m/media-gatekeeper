@@ -2,6 +2,12 @@ use serde::Deserialize;
 use std::path::Path;
 use std::process::Command;
 
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
 #[derive(Debug, Deserialize)]
 pub struct YouTubeVideo {
     pub id: String,
@@ -22,15 +28,19 @@ impl YouTubeFetcher {
         // --dump-json: output as JSON (one line per video)
         // --no-warnings: suppress warnings
         // --playlist-end 50: limit to 50 most recent videos
-        let output = Command::new(ytdlp_path)
-            .args([
-                "--flat-playlist",
-                "--dump-json",
-                "--no-warnings",
-                "--playlist-end", "50",
-                channel_url,
-            ])
-            .output()
+        let mut cmd = Command::new(ytdlp_path);
+        cmd.args([
+            "--flat-playlist",
+            "--dump-json",
+            "--no-warnings",
+            "--playlist-end", "50",
+            channel_url,
+        ]);
+
+        #[cfg(target_os = "windows")]
+        cmd.creation_flags(CREATE_NO_WINDOW);
+
+        let output = cmd.output()
             .map_err(|e| format!("Failed to execute yt-dlp: {}", e))?;
 
         if !output.status.success() {

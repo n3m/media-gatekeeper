@@ -9,6 +9,12 @@ use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::{mpsc, Semaphore};
 
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
 #[derive(Clone, serde::Serialize)]
 pub struct DownloadStartedEvent {
     pub feed_item_id: String,
@@ -262,19 +268,23 @@ impl DownloadManager {
         cancelled: &Arc<Mutex<HashSet<String>>>,
         ytdlp_path: &PathBuf,
     ) -> Result<(), String> {
-        let mut child = Command::new(ytdlp_path)
-            .args([
-                "-f",
-                "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
-                "-o",
-                output_path,
-                "--newline",
-                "--no-warnings",
-                video_url,
-            ])
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
+        let mut cmd = Command::new(ytdlp_path);
+        cmd.args([
+            "-f",
+            "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+            "-o",
+            output_path,
+            "--newline",
+            "--no-warnings",
+            video_url,
+        ])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+        #[cfg(target_os = "windows")]
+        cmd.creation_flags(CREATE_NO_WINDOW);
+
+        let mut child = cmd.spawn()
             .map_err(|e| format!("Failed to execute yt-dlp: {}", e))?;
 
         let stdout = child.stdout.take().ok_or("Failed to capture stdout")?;

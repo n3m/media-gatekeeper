@@ -2,6 +2,12 @@ use serde::Deserialize;
 use std::path::Path;
 use std::process::Command;
 
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
 #[derive(Debug, Deserialize)]
 pub struct PatreonPost {
     pub id: String,
@@ -23,18 +29,22 @@ impl PatreonFetcher {
         // --no-warnings: suppress warnings
         // --cookies: use Netscape-format cookie file for authentication
         // --playlist-end 50: limit to 50 most recent posts
-        let output = Command::new(ytdlp_path)
-            .args([
-                "--flat-playlist",
-                "--dump-json",
-                "--no-warnings",
-                "--cookies",
-                cookie_path,
-                "--playlist-end",
-                "50",
-                creator_url,
-            ])
-            .output()
+        let mut cmd = Command::new(ytdlp_path);
+        cmd.args([
+            "--flat-playlist",
+            "--dump-json",
+            "--no-warnings",
+            "--cookies",
+            cookie_path,
+            "--playlist-end",
+            "50",
+            creator_url,
+        ]);
+
+        #[cfg(target_os = "windows")]
+        cmd.creation_flags(CREATE_NO_WINDOW);
+
+        let output = cmd.output()
             .map_err(|e| format!("Failed to execute yt-dlp: {}", e))?;
 
         if !output.status.success() {
@@ -50,6 +60,16 @@ impl PatreonFetcher {
         }
 
         let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+
+        // Log for debugging (this will show in sync error if needed)
+        if stdout.trim().is_empty() {
+            return Err(format!(
+                "No content returned from Patreon. URL: {}. Stderr: {}",
+                creator_url,
+                if stderr.is_empty() { "none" } else { &stderr }
+            ));
+        }
 
         // Parse each line as a separate JSON object
         let posts: Vec<PatreonPost> = stdout
