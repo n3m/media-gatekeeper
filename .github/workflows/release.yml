@@ -67,13 +67,10 @@ jobs:
       - name: Download yt-dlp for macOS universal
         if: matrix.platform == 'macos-latest'
         run: |
-          # Also download for the other arch since we're building universal
+          # Download for universal build (yt-dlp macOS binary works on both archs)
           curl -L -s https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos \
-            -o src-tauri/binaries/yt-dlp-aarch64-apple-darwin
-          chmod +x src-tauri/binaries/yt-dlp-aarch64-apple-darwin
-          curl -L -s https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos \
-            -o src-tauri/binaries/yt-dlp-x86_64-apple-darwin
-          chmod +x src-tauri/binaries/yt-dlp-x86_64-apple-darwin
+            -o src-tauri/binaries/yt-dlp-universal-apple-darwin
+          chmod +x src-tauri/binaries/yt-dlp-universal-apple-darwin
 
       - name: Build and release
         uses: tauri-apps/tauri-action@v0
