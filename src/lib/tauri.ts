@@ -81,4 +81,11 @@ export const api = {
     requestPermission: () => invoke<string>("request_notification_permission"),
     sendTest: () => invoke<void>("send_test_notification"),
   },
+  metadata: {
+    fetch: (feedItemIds: string[]) => invoke<void>("fetch_feed_items_metadata", { feedItemIds }),
+    getIncomplete: (creatorId: string, limit?: number) =>
+      invoke<string[]>("get_incomplete_metadata_items", { creatorId, limit }),
+    pauseWorker: () => invoke<void>("pause_metadata_worker"),
+    resumeWorker: () => invoke<void>("resume_metadata_worker"),
+  },
 };

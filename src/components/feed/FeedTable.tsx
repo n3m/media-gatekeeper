@@ -1,4 +1,5 @@
-import { CheckCircle2, Circle, Loader2, XCircle, ImageOff } from "lucide-react";
+import { useCallback } from "react";
+import { CheckCircle2, Circle, Loader2, XCircle, ImageOff, Clock } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -20,6 +21,8 @@ interface FeedTableProps {
   onToggleSelect: (id: string) => void;
   onSelectAll: (ids: string[]) => void;
   downloadProgress?: Map<string, DownloadProgress>;
+  /** Callback to register row elements for visibility tracking */
+  onRegisterRow?: (id: string, element: HTMLElement | null) => void;
 }
 
 function getStatusIcon(status: FeedItem["download_status"], progress?: DownloadProgress) {
@@ -67,27 +70,34 @@ function getPlatformBadge(platform: Source["platform"]) {
   }
 }
 
-function formatRelativeDate(dateString: string | null): string {
-  if (!dateString) return "Unknown";
+function formatRelativeDate(dateString: string | null, metadataComplete: boolean): { text: string; loading: boolean } {
+  if (!dateString) {
+    // Show loading state if metadata is incomplete
+    return { text: metadataComplete ? "Unknown" : "Loading...", loading: !metadataComplete };
+  }
 
   const date = new Date(dateString);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
-  if (diffDays === 0) return "Today";
-  if (diffDays === 1) return "Yesterday";
-  if (diffDays < 7) return `${diffDays} days ago`;
-  if (diffDays < 30) {
+  let text: string;
+  if (diffDays === 0) text = "Today";
+  else if (diffDays === 1) text = "Yesterday";
+  else if (diffDays < 7) text = `${diffDays} days ago`;
+  else if (diffDays < 30) {
     const weeks = Math.floor(diffDays / 7);
-    return `${weeks} week${weeks > 1 ? "s" : ""} ago`;
+    text = `${weeks} week${weeks > 1 ? "s" : ""} ago`;
   }
-  if (diffDays < 365) {
+  else if (diffDays < 365) {
     const months = Math.floor(diffDays / 30);
-    return `${months} month${months > 1 ? "s" : ""} ago`;
+    text = `${months} month${months > 1 ? "s" : ""} ago`;
+  }
+  else {
+    text = date.toLocaleDateString();
   }
 
-  return date.toLocaleDateString();
+  return { text, loading: false };
 }
 
 function ThumbnailImage({ url, title }: { url: string | null; title: string }) {
@@ -123,6 +133,7 @@ export function FeedTable({
   onToggleSelect,
   onSelectAll,
   downloadProgress,
+  onRegisterRow,
 }: FeedTableProps) {
   const sourceMap = new Map(sources.map((s) => [s.id, s]));
   const allSelected = items.length > 0 && items.every((item) => selectedIds.has(item.id));
@@ -135,6 +146,14 @@ export function FeedTable({
       onSelectAll(items.map((item) => item.id));
     }
   };
+
+  // Create ref callback for row registration
+  const createRowRef = useCallback(
+    (id: string) => (element: HTMLTableRowElement | null) => {
+      onRegisterRow?.(id, element);
+    },
+    [onRegisterRow]
+  );
 
   if (items.length === 0) {
     return (
@@ -167,9 +186,12 @@ export function FeedTable({
           const source = sourceMap.get(item.source_id);
           const isSelected = selectedIds.has(item.id);
 
+          const dateInfo = formatRelativeDate(item.published_at, item.metadata_complete);
+
           return (
             <TableRow
               key={item.id}
+              ref={createRowRef(item.id)}
               data-state={isSelected ? "selected" : undefined}
             >
               <TableCell>
@@ -189,7 +211,14 @@ export function FeedTable({
                 </div>
               </TableCell>
               <TableCell className="text-muted-foreground">
-                {formatRelativeDate(item.published_at)}
+                {dateInfo.loading ? (
+                  <span className="flex items-center gap-1 text-muted-foreground/60">
+                    <Clock className="h-3 w-3 animate-pulse" />
+                    <span className="text-xs">{dateInfo.text}</span>
+                  </span>
+                ) : (
+                  dateInfo.text
+                )}
               </TableCell>
               <TableCell>
                 {source ? (

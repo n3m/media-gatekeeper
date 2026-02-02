@@ -162,4 +162,97 @@ impl PatreonFetcher {
 
         Some(format!("{}-{}-{}T00:00:00Z", year, month, day))
     }
+
+    /// Fetch full metadata for a single Patreon post by its ID
+    /// Returns metadata including accurate published_at date
+    pub fn fetch_post_metadata(post_id: &str, cookie_path: &str, ytdlp_path: &Path) -> Result<PatreonPost, String> {
+        let url = format!("https://www.patreon.com/posts/{}", post_id);
+
+        let mut cmd = Command::new(ytdlp_path);
+        cmd.args([
+            "--dump-json",
+            "--no-download",
+            "--no-warnings",
+            "--cookies",
+            cookie_path,
+            &url,
+        ]);
+
+        #[cfg(target_os = "windows")]
+        cmd.creation_flags(CREATE_NO_WINDOW);
+
+        let output = cmd.output()
+            .map_err(|e| format!("Failed to execute yt-dlp: {}", e))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            // Check for common auth errors
+            if stderr.contains("Unable to download") || stderr.contains("HTTP Error 401") {
+                return Err(
+                    "Authentication failed. Please check your cookie file is valid and not expired."
+                        .to_string(),
+                );
+            }
+            return Err(format!("yt-dlp failed: {}", stderr));
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+
+        serde_json::from_str::<serde_json::Value>(&stdout)
+            .map_err(|e| format!("Failed to parse JSON: {}", e))
+            .and_then(|v| {
+                let id = v["id"].as_str().unwrap_or(post_id).to_string();
+
+                // Try to get title, fall back to webpage_url_basename
+                let title = v["title"]
+                    .as_str()
+                    .map(|s| s.to_string())
+                    .or_else(|| {
+                        v["webpage_url_basename"].as_str().map(|basename| {
+                            let parts: Vec<&str> = basename.rsplitn(2, '-').collect();
+                            let title_slug = if parts.len() == 2 && parts[0].parse::<u64>().is_ok() {
+                                parts[1]
+                            } else {
+                                basename
+                            };
+                            title_slug
+                                .replace('-', " ")
+                                .split_whitespace()
+                                .map(|word| {
+                                    let mut chars = word.chars();
+                                    match chars.next() {
+                                        None => String::new(),
+                                        Some(first) => {
+                                            first.to_uppercase().chain(chars).collect()
+                                        }
+                                    }
+                                })
+                                .collect::<Vec<_>>()
+                                .join(" ")
+                        })
+                    })
+                    .unwrap_or_default();
+
+                if title.is_empty() {
+                    return Err("Could not extract title from response".to_string());
+                }
+
+                Ok(PatreonPost {
+                    id,
+                    title,
+                    thumbnail: v["thumbnail"]
+                        .as_str()
+                        .map(|s| s.to_string())
+                        .or_else(|| {
+                            v["thumbnails"]
+                                .as_array()
+                                .and_then(|t| t.first())
+                                .and_then(|t| t["url"].as_str())
+                                .map(|s| s.to_string())
+                        }),
+                    duration: v["duration"].as_f64(),
+                    upload_date: v["upload_date"].as_str().map(|s| s.to_string()),
+                })
+            })
+    }
 }

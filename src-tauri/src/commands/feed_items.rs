@@ -10,7 +10,7 @@ pub fn get_feed_items_by_source(db: State<Database>, source_id: String) -> Resul
 
     let mut stmt = conn
         .prepare(
-            "SELECT id, source_id, external_id, title, thumbnail_url, published_at, duration, download_status, warehouse_item_id, created_at
+            "SELECT id, source_id, external_id, title, thumbnail_url, published_at, duration, download_status, warehouse_item_id, metadata_complete, created_at
              FROM feed_items WHERE source_id = ? ORDER BY published_at DESC"
         )
         .map_err(|e| e.to_string())?;
@@ -27,7 +27,8 @@ pub fn get_feed_items_by_source(db: State<Database>, source_id: String) -> Resul
                 duration: row.get(6)?,
                 download_status: row.get(7)?,
                 warehouse_item_id: row.get(8)?,
-                created_at: row.get(9)?,
+                metadata_complete: row.get(9)?,
+                created_at: row.get(10)?,
             })
         })
         .map_err(|e| e.to_string())?
@@ -43,7 +44,7 @@ pub fn get_feed_items_by_creator(db: State<Database>, creator_id: String) -> Res
 
     let mut stmt = conn
         .prepare(
-            "SELECT fi.id, fi.source_id, fi.external_id, fi.title, fi.thumbnail_url, fi.published_at, fi.duration, fi.download_status, fi.warehouse_item_id, fi.created_at
+            "SELECT fi.id, fi.source_id, fi.external_id, fi.title, fi.thumbnail_url, fi.published_at, fi.duration, fi.download_status, fi.warehouse_item_id, fi.metadata_complete, fi.created_at
              FROM feed_items fi
              JOIN sources s ON fi.source_id = s.id
              WHERE s.creator_id = ?
@@ -63,7 +64,8 @@ pub fn get_feed_items_by_creator(db: State<Database>, creator_id: String) -> Res
                 duration: row.get(6)?,
                 download_status: row.get(7)?,
                 warehouse_item_id: row.get(8)?,
-                created_at: row.get(9)?,
+                metadata_complete: row.get(9)?,
+                created_at: row.get(10)?,
             })
         })
         .map_err(|e| e.to_string())?
@@ -97,6 +99,7 @@ pub fn create_feed_item(db: State<Database>, request: CreateFeedItemRequest) -> 
         duration: request.duration,
         download_status: "not_downloaded".to_string(),
         warehouse_item_id: None,
+        metadata_complete: false,
         created_at: now,
     })
 }
@@ -132,7 +135,7 @@ pub fn update_feed_item(db: State<Database>, id: String, request: UpdateFeedItem
     // Get current feed item
     let mut item = conn
         .query_row(
-            "SELECT id, source_id, external_id, title, thumbnail_url, published_at, duration, download_status, warehouse_item_id, created_at
+            "SELECT id, source_id, external_id, title, thumbnail_url, published_at, duration, download_status, warehouse_item_id, metadata_complete, created_at
              FROM feed_items WHERE id = ?",
             [&id],
             |row| {
@@ -146,7 +149,8 @@ pub fn update_feed_item(db: State<Database>, id: String, request: UpdateFeedItem
                     duration: row.get(6)?,
                     download_status: row.get(7)?,
                     warehouse_item_id: row.get(8)?,
-                    created_at: row.get(9)?,
+                    metadata_complete: row.get(9)?,
+                    created_at: row.get(10)?,
                 })
             },
         )

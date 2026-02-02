@@ -8,8 +8,10 @@ import { useFeedItems } from "@/hooks/useFeedItems";
 import { useSources } from "@/hooks/useSources";
 import { useSyncEvents, useSync } from "@/hooks/useSyncEvents";
 import { useDownloadEvents, useDownload } from "@/hooks/useDownloadEvents";
+import { useVisibleItems } from "@/hooks/useVisibleItems";
+import { useMetadataEvents } from "@/hooks/useMetadataEvents";
 import { api } from "@/lib/tauri";
-import type { FeedItem, SyncEvent } from "@/types/feed-item";
+import type { FeedItem, SyncEvent, MetadataEvent } from "@/types/feed-item";
 import type {
   DownloadStartedEvent,
   DownloadProgressEvent,
@@ -51,6 +53,70 @@ export function Feed({ creatorId }: FeedProps) {
   const [searchResultIds, setSearchResultIds] = useState<Set<string> | null>(null);
   const [_isSearching, setIsSearching] = useState(false);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Visibility tracking for progressive metadata loading
+  const { registerRow, visibleIds } = useVisibleItems({ debounceMs: 300 });
+
+  // Metadata events hook
+  const { fetchMetadata } = useMetadataEvents({
+    onMetadataCompleted: useCallback(
+      (_event: MetadataEvent) => {
+        // Refetch feed items when metadata is updated
+        refetchFeed();
+      },
+      [refetchFeed]
+    ),
+    onMetadataError: useCallback((event: MetadataEvent) => {
+      console.error("Metadata fetch failed:", event.message);
+    }, []),
+  });
+
+  // Track pending metadata fetches to avoid duplicates
+  const pendingMetadataFetchesRef = useRef<Set<string>>(new Set());
+  const metadataFetchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Fetch metadata for visible incomplete items
+  useEffect(() => {
+    if (metadataFetchDebounceRef.current) {
+      clearTimeout(metadataFetchDebounceRef.current);
+    }
+
+    // Find visible items that need metadata
+    const incompleteVisibleIds: string[] = [];
+    visibleIds.forEach((id) => {
+      const item = feedItems.find((i) => i.id === id);
+      if (item && !item.metadata_complete && !pendingMetadataFetchesRef.current.has(id)) {
+        incompleteVisibleIds.push(id);
+      }
+    });
+
+    if (incompleteVisibleIds.length === 0) {
+      return;
+    }
+
+    // Debounce the fetch request
+    metadataFetchDebounceRef.current = setTimeout(async () => {
+      // Mark items as pending
+      incompleteVisibleIds.forEach((id) => pendingMetadataFetchesRef.current.add(id));
+
+      try {
+        await fetchMetadata(incompleteVisibleIds);
+      } catch (err) {
+        console.error("Failed to fetch metadata:", err);
+      } finally {
+        // Remove from pending after a delay (to allow for event processing)
+        setTimeout(() => {
+          incompleteVisibleIds.forEach((id) => pendingMetadataFetchesRef.current.delete(id));
+        }, 5000);
+      }
+    }, 500);
+
+    return () => {
+      if (metadataFetchDebounceRef.current) {
+        clearTimeout(metadataFetchDebounceRef.current);
+      }
+    };
+  }, [visibleIds, feedItems, fetchMetadata]);
 
   // Perform FTS search when query changes
   useEffect(() => {
@@ -278,6 +344,7 @@ export function Feed({ creatorId }: FeedProps) {
         onToggleSelect={handleToggleSelect}
         onSelectAll={handleSelectAll}
         downloadProgress={downloadProgress}
+        onRegisterRow={registerRow}
       />
     </div>
   );

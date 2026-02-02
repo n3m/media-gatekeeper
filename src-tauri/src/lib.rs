@@ -6,7 +6,7 @@ mod workers;
 
 use db::Database;
 use tauri::Manager;
-use workers::{DownloadManager, SyncManager};
+use workers::{DownloadManager, MetadataWorker, SyncManager};
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -47,6 +47,10 @@ pub fn run() {
             // Initialize download manager
             let download_manager = DownloadManager::new(app.handle().clone());
             app.manage(download_manager);
+
+            // Initialize metadata worker
+            let metadata_worker = MetadataWorker::new(app.handle().clone());
+            app.manage(metadata_worker);
 
             Ok(())
         })
@@ -94,6 +98,10 @@ pub fn run() {
             commands::check_notification_permission,
             commands::request_notification_permission,
             commands::send_test_notification,
+            commands::fetch_feed_items_metadata,
+            commands::get_incomplete_metadata_items,
+            commands::pause_metadata_worker,
+            commands::resume_metadata_worker,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

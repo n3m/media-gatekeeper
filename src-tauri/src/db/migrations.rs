@@ -2,7 +2,30 @@ use rusqlite::Connection;
 
 pub fn run_all(conn: &Connection) -> Result<(), rusqlite::Error> {
     run_schema(conn)?;
+    run_migrations(conn)?;
     rebuild_fts_indexes(conn)?;
+    Ok(())
+}
+
+/// Run incremental migrations for existing databases
+fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
+    // Add metadata_complete column if it doesn't exist (for existing databases)
+    let has_metadata_complete: bool = conn
+        .query_row(
+            "SELECT COUNT(*) > 0 FROM pragma_table_info('feed_items') WHERE name = 'metadata_complete'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(false);
+
+    if !has_metadata_complete {
+        conn.execute_batch(
+            "ALTER TABLE feed_items ADD COLUMN metadata_complete INTEGER NOT NULL DEFAULT 0;
+             CREATE INDEX IF NOT EXISTS idx_feed_items_metadata_complete ON feed_items(metadata_complete);
+             CREATE INDEX IF NOT EXISTS idx_feed_items_source_metadata ON feed_items(source_id, metadata_complete);"
+        )?;
+    }
+
     Ok(())
 }
 
@@ -63,6 +86,7 @@ fn run_schema(conn: &Connection) -> Result<(), rusqlite::Error> {
             duration INTEGER,
             download_status TEXT NOT NULL DEFAULT 'not_downloaded',
             warehouse_item_id TEXT,
+            metadata_complete INTEGER NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL,
             FOREIGN KEY (source_id) REFERENCES sources(id) ON DELETE CASCADE,
             FOREIGN KEY (warehouse_item_id) REFERENCES warehouse_items(id) ON DELETE SET NULL,
@@ -90,6 +114,8 @@ fn run_schema(conn: &Connection) -> Result<(), rusqlite::Error> {
         CREATE INDEX IF NOT EXISTS idx_sources_creator ON sources(creator_id);
         CREATE INDEX IF NOT EXISTS idx_feed_items_source ON feed_items(source_id);
         CREATE INDEX IF NOT EXISTS idx_feed_items_download_status ON feed_items(download_status);
+        CREATE INDEX IF NOT EXISTS idx_feed_items_metadata_complete ON feed_items(metadata_complete);
+        CREATE INDEX IF NOT EXISTS idx_feed_items_source_metadata ON feed_items(source_id, metadata_complete);
         CREATE INDEX IF NOT EXISTS idx_warehouse_items_creator ON warehouse_items(creator_id);
 
         -- FTS5 virtual tables for full-text search (standalone, not content-linked)

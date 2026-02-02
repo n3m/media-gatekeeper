@@ -105,4 +105,64 @@ impl YouTubeFetcher {
 
         Some(format!("{}-{}-{}T00:00:00Z", year, month, day))
     }
+
+    /// Fetch full metadata for a single video by its ID
+    /// Returns metadata including accurate published_at date
+    pub fn fetch_video_metadata(video_id: &str, ytdlp_path: &Path) -> Result<YouTubeVideo, String> {
+        let url = format!("https://www.youtube.com/watch?v={}", video_id);
+
+        let mut cmd = Command::new(ytdlp_path);
+        cmd.args([
+            "--dump-json",
+            "--no-download",
+            "--no-warnings",
+            &url,
+        ]);
+
+        #[cfg(target_os = "windows")]
+        cmd.creation_flags(CREATE_NO_WINDOW);
+
+        let output = cmd.output()
+            .map_err(|e| format!("Failed to execute yt-dlp: {}", e))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("yt-dlp failed: {}", stderr));
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+
+        serde_json::from_str::<serde_json::Value>(&stdout)
+            .map_err(|e| format!("Failed to parse JSON: {}", e))
+            .map(|v| {
+                // Try multiple date fields for better accuracy
+                let upload_date = v["upload_date"]
+                    .as_str()
+                    .map(|s| s.to_string())
+                    .or_else(|| {
+                        // Try timestamp (Unix seconds) and convert to YYYYMMDD
+                        v["timestamp"]
+                            .as_i64()
+                            .or_else(|| v["release_timestamp"].as_i64())
+                            .map(|ts| {
+                                chrono::DateTime::from_timestamp(ts, 0)
+                                    .map(|dt| dt.format("%Y%m%d").to_string())
+                                    .unwrap_or_default()
+                            })
+                            .filter(|s| !s.is_empty())
+                    });
+
+                YouTubeVideo {
+                    id: v["id"].as_str().unwrap_or(video_id).to_string(),
+                    title: v["title"].as_str().unwrap_or_default().to_string(),
+                    thumbnail: v["thumbnail"].as_str().map(|s| s.to_string())
+                        .or_else(|| v["thumbnails"].as_array()
+                            .and_then(|t| t.first())
+                            .and_then(|t| t["url"].as_str())
+                            .map(|s| s.to_string())),
+                    duration: v["duration"].as_f64(),
+                    upload_date,
+                }
+            })
+    }
 }

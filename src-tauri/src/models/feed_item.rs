@@ -11,6 +11,7 @@ pub struct FeedItem {
     pub duration: Option<i64>,
     pub download_status: String,
     pub warehouse_item_id: Option<String>,
+    pub metadata_complete: bool,
     pub created_at: String,
 }
 
