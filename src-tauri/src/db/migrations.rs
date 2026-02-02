@@ -10,13 +10,22 @@ pub fn run_all(conn: &Connection) -> Result<(), rusqlite::Error> {
 /// Run incremental migrations for existing databases
 fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
     // Add metadata_complete column if it doesn't exist (for existing databases)
-    let has_metadata_complete: bool = conn
-        .query_row(
-            "SELECT COUNT(*) > 0 FROM pragma_table_info('feed_items') WHERE name = 'metadata_complete'",
-            [],
-            |row| row.get(0),
-        )
-        .unwrap_or(false);
+    // Use PRAGMA table_info directly and check results
+    let mut has_metadata_complete = false;
+    let mut stmt = conn.prepare("PRAGMA table_info(feed_items)")?;
+    let column_iter = stmt.query_map([], |row| {
+        row.get::<_, String>(1) // column name is at index 1
+    })?;
+
+    for column_result in column_iter {
+        if let Ok(column_name) = column_result {
+            if column_name == "metadata_complete" {
+                has_metadata_complete = true;
+                break;
+            }
+        }
+    }
+    drop(stmt);
 
     if !has_metadata_complete {
         conn.execute_batch(
