@@ -45,9 +45,17 @@ pub fn get_ytdlp_path(app_handle: &AppHandle) -> Result<PathBuf, String> {
         "which"
     };
 
-    let output = std::process::Command::new(system_cmd)
-        .arg("yt-dlp")
-        .output();
+    let mut cmd = std::process::Command::new(system_cmd);
+    cmd.arg("yt-dlp");
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    let output = cmd.output();
 
     match output {
         Ok(out) if out.status.success() => {

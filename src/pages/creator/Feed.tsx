@@ -57,15 +57,8 @@ export function Feed({ creatorId }: FeedProps) {
   // Visibility tracking for progressive metadata loading
   const { registerRow, visibleIds } = useVisibleItems({ debounceMs: 300 });
 
-  // Metadata events hook
+  // Metadata events hook - no refetch on completion to avoid loading flicker
   const { fetchMetadata } = useMetadataEvents({
-    onMetadataCompleted: useCallback(
-      (_event: MetadataEvent) => {
-        // Refetch feed items when metadata is updated
-        refetchFeed();
-      },
-      [refetchFeed]
-    ),
     onMetadataError: useCallback((event: MetadataEvent) => {
       console.error("Metadata fetch failed:", event.message);
     }, []),

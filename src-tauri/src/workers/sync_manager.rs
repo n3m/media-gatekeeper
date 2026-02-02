@@ -1,11 +1,8 @@
 use crate::commands::notifications::notify_sync_completed;
 use crate::db::Database;
 use crate::services::{get_ytdlp_path, PatreonFetcher, YouTubeFetcher};
-use std::path::PathBuf;
-use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::mpsc;
-use tokio::time::interval;
 
 #[derive(Clone, serde::Serialize)]
 pub struct SyncEvent {
@@ -41,31 +38,24 @@ impl SyncManager {
 
     fn start_worker(&self, app_handle: AppHandle, mut rx: mpsc::Receiver<SyncCommand>) {
         tauri::async_runtime::spawn(async move {
-            // Sync interval (5 minutes = 300 seconds)
-            let mut sync_interval = interval(Duration::from_secs(300));
-
+            // Process only manual sync commands (no automatic periodic sync)
             loop {
-                tokio::select! {
-                    _ = sync_interval.tick() => {
-                        // Periodic sync - sync all sources
-                        Self::do_sync_all_sources(&app_handle).await;
-                    }
-                    Some(cmd) = rx.recv() => {
-                        match cmd {
-                            SyncCommand::SyncSource(source_id) => {
-                                Self::do_sync_source(&app_handle, &source_id).await;
-                            }
-                            SyncCommand::SyncAllForCreator(creator_id) => {
-                                Self::do_sync_creator_sources(&app_handle, &creator_id).await;
-                            }
-                            SyncCommand::SyncAll => {
-                                Self::do_sync_all_sources(&app_handle).await;
-                            }
-                            SyncCommand::Stop => {
-                                break;
-                            }
+                match rx.recv().await {
+                    Some(cmd) => match cmd {
+                        SyncCommand::SyncSource(source_id) => {
+                            Self::do_sync_source(&app_handle, &source_id).await;
                         }
-                    }
+                        SyncCommand::SyncAllForCreator(creator_id) => {
+                            Self::do_sync_creator_sources(&app_handle, &creator_id).await;
+                        }
+                        SyncCommand::SyncAll => {
+                            Self::do_sync_all_sources(&app_handle).await;
+                        }
+                        SyncCommand::Stop => {
+                            break;
+                        }
+                    },
+                    None => break,
                 }
             }
         });
