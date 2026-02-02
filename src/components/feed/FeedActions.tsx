@@ -12,11 +12,12 @@ interface FeedActionsProps {
 
 export function FeedActions({
   selectedCount,
-  totalCount,
+  totalCount: _totalCount,
   onDownloadSelected,
   onSyncNow,
   isSyncing,
 }: FeedActionsProps) {
+  void _totalCount; // Available for future use
   const hasSelection = selectedCount > 0;
 
   return (

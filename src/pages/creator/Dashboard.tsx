@@ -169,7 +169,7 @@ export function Dashboard({ creatorId }: DashboardProps) {
               <div>
                 <p className="text-muted-foreground">Active sources</p>
                 <p className="font-semibold text-lg">
-                  {sources.filter(s => s.status === "active").length}
+                  {sources.filter(s => s.status === "validated").length}
                 </p>
               </div>
             </div>
