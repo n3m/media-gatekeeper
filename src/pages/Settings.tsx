@@ -299,11 +299,29 @@ export function Settings() {
           <Label htmlFor="theme" className="text-sm">Theme</Label>
           <Select
             value={localSettings.theme}
-            onValueChange={(value) =>
+            onValueChange={(value) => {
               setLocalSettings((prev) =>
                 prev ? { ...prev, theme: value } : null
-              )
-            }
+              );
+              // Apply theme immediately for instant feedback
+              const root = document.documentElement;
+              if (value === "dark") {
+                root.classList.add("dark");
+                root.classList.remove("light");
+              } else if (value === "light") {
+                root.classList.add("light");
+                root.classList.remove("dark");
+              } else if (value === "system") {
+                const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+                if (prefersDark) {
+                  root.classList.add("dark");
+                  root.classList.remove("light");
+                } else {
+                  root.classList.add("light");
+                  root.classList.remove("dark");
+                }
+              }
+            }}
           >
             <SelectTrigger id="theme" className="w-full bg-surface border-border/50">
               <SelectValue placeholder="Select theme" />

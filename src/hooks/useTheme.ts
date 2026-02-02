@@ -4,9 +4,17 @@ import { useAppSettings } from "./useAppSettings";
 type Theme = "dark" | "light" | "system";
 type ResolvedTheme = "dark" | "light";
 
+// Get initial theme from DOM (set by previous session) or default to dark
+function getInitialTheme(): ResolvedTheme {
+  if (typeof document !== "undefined") {
+    return document.documentElement.classList.contains("light") ? "light" : "dark";
+  }
+  return "dark";
+}
+
 export function useTheme() {
   const { settings } = useAppSettings();
-  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>("dark");
+  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(getInitialTheme);
 
   // Get the theme preference from settings
   const theme = (settings?.theme as Theme) || "dark";
