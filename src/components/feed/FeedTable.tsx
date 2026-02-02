@@ -1,18 +1,14 @@
-import { useCallback } from "react";
+import { useRef, useMemo, useEffect } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { CheckCircle2, Circle, Loader2, XCircle, ImageOff, Clock } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 import type { FeedItem } from "@/types/feed-item";
 import type { Source } from "@/types/source";
 import type { DownloadProgress } from "@/pages/creator/Feed";
+
+const ROW_HEIGHT = 56; // Fixed row height for virtualization
 
 interface FeedTableProps {
   items: FeedItem[];
@@ -21,8 +17,8 @@ interface FeedTableProps {
   onToggleSelect: (id: string) => void;
   onSelectAll: (ids: string[]) => void;
   downloadProgress?: Map<string, DownloadProgress>;
-  /** Callback to register row elements for visibility tracking */
-  onRegisterRow?: (id: string, element: HTMLElement | null) => void;
+  /** Callback when visible items change (for progressive metadata loading) */
+  onVisibleItemsChange?: (visibleIds: Set<string>) => void;
 }
 
 function getStatusIcon(status: FeedItem["download_status"], progress?: DownloadProgress) {
@@ -133,11 +129,31 @@ export function FeedTable({
   onToggleSelect,
   onSelectAll,
   downloadProgress,
-  onRegisterRow,
+  onVisibleItemsChange,
 }: FeedTableProps) {
-  const sourceMap = new Map(sources.map((s) => [s.id, s]));
+  const parentRef = useRef<HTMLDivElement>(null);
+  const sourceMap = useMemo(() => new Map(sources.map((s) => [s.id, s])), [sources]);
   const allSelected = items.length > 0 && items.every((item) => selectedIds.has(item.id));
   const someSelected = items.some((item) => selectedIds.has(item.id));
+
+  const virtualizer = useVirtualizer({
+    count: items.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => ROW_HEIGHT,
+    overscan: 10, // Render 10 extra rows above/below viewport
+  });
+
+  const virtualRows = virtualizer.getVirtualItems();
+
+  // Report visible items to parent for metadata loading
+  useEffect(() => {
+    if (!onVisibleItemsChange) return;
+
+    const visibleIds = new Set(
+      virtualRows.map((vRow) => items[vRow.index].id)
+    );
+    onVisibleItemsChange(visibleIds);
+  }, [virtualRows, items, onVisibleItemsChange]);
 
   const handleSelectAll = () => {
     if (allSelected) {
@@ -146,14 +162,6 @@ export function FeedTable({
       onSelectAll(items.map((item) => item.id));
     }
   };
-
-  // Create ref callback for row registration
-  const createRowRef = useCallback(
-    (id: string) => (element: HTMLTableRowElement | null) => {
-      onRegisterRow?.(id, element);
-    },
-    [onRegisterRow]
-  );
 
   if (items.length === 0) {
     return (
@@ -164,80 +172,108 @@ export function FeedTable({
   }
 
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead className="w-[50px]">
-            <Checkbox
-              checked={allSelected}
-              onCheckedChange={handleSelectAll}
-              aria-label="Select all"
-              {...(someSelected && !allSelected ? { "data-state": "indeterminate" } : {})}
-            />
-          </TableHead>
-          <TableHead className="w-[50px]">Status</TableHead>
-          <TableHead>Title</TableHead>
-          <TableHead className="w-[120px]">Published</TableHead>
-          <TableHead className="w-[120px]">Source</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {items.map((item) => {
-          const source = sourceMap.get(item.source_id);
-          const isSelected = selectedIds.has(item.id);
+    <div className="border rounded-md">
+      {/* Fixed header */}
+      <div className="flex items-center h-10 px-2 border-b bg-muted/50 text-sm font-medium text-muted-foreground">
+        <div className="w-[50px] flex-shrink-0 flex items-center justify-center">
+          <Checkbox
+            checked={allSelected}
+            onCheckedChange={handleSelectAll}
+            aria-label="Select all"
+            {...(someSelected && !allSelected ? { "data-state": "indeterminate" } : {})}
+          />
+        </div>
+        <div className="w-[50px] flex-shrink-0">Status</div>
+        <div className="flex-1 min-w-0">Title</div>
+        <div className="w-[120px] flex-shrink-0">Published</div>
+        <div className="w-[120px] flex-shrink-0">Source</div>
+      </div>
 
-          const dateInfo = formatRelativeDate(item.published_at, item.metadata_complete);
+      {/* Virtualized body */}
+      <div
+        ref={parentRef}
+        className="h-[calc(100vh-300px)] overflow-auto"
+        style={{ contain: "strict" }}
+      >
+        <div
+          style={{
+            height: virtualizer.getTotalSize(),
+            width: "100%",
+            position: "relative",
+          }}
+        >
+          {virtualRows.map((virtualRow) => {
+            const item = items[virtualRow.index];
+            const source = sourceMap.get(item.source_id);
+            const isSelected = selectedIds.has(item.id);
+            const dateInfo = formatRelativeDate(item.published_at, item.metadata_complete);
 
-          return (
-            <TableRow
-              key={item.id}
-              ref={createRowRef(item.id)}
-              data-state={isSelected ? "selected" : undefined}
-            >
-              <TableCell>
-                <Checkbox
-                  checked={isSelected}
-                  onCheckedChange={() => onToggleSelect(item.id)}
-                  aria-label={`Select ${item.title}`}
-                />
-              </TableCell>
-              <TableCell>{getStatusIcon(item.download_status, downloadProgress?.get(item.id))}</TableCell>
-              <TableCell>
-                <div className="flex items-center gap-3">
+            return (
+              <div
+                key={item.id}
+                className={cn(
+                  "absolute left-0 right-0 flex items-center px-2 border-b hover:bg-muted/50 transition-colors",
+                  isSelected && "bg-muted"
+                )}
+                style={{
+                  height: ROW_HEIGHT,
+                  top: virtualRow.start,
+                }}
+              >
+                {/* Checkbox */}
+                <div className="w-[50px] flex-shrink-0 flex items-center justify-center">
+                  <Checkbox
+                    checked={isSelected}
+                    onCheckedChange={() => onToggleSelect(item.id)}
+                    aria-label={`Select ${item.title}`}
+                  />
+                </div>
+
+                {/* Status */}
+                <div className="w-[50px] flex-shrink-0 flex items-center">
+                  {getStatusIcon(item.download_status, downloadProgress?.get(item.id))}
+                </div>
+
+                {/* Title with thumbnail */}
+                <div className="flex-1 min-w-0 flex items-center gap-3">
                   <ThumbnailImage url={item.thumbnail_url} title={item.title} />
-                  <span className="truncate max-w-[400px]" title={item.title}>
+                  <span className="truncate" title={item.title}>
                     {item.title}
                   </span>
                 </div>
-              </TableCell>
-              <TableCell className="text-muted-foreground">
-                {dateInfo.loading ? (
-                  <span className="flex items-center gap-1 text-muted-foreground/60">
-                    <Clock className="h-3 w-3 animate-pulse" />
-                    <span className="text-xs">{dateInfo.text}</span>
-                  </span>
-                ) : (
-                  dateInfo.text
-                )}
-              </TableCell>
-              <TableCell>
-                {source ? (
-                  <div className="flex flex-col gap-1">
-                    {getPlatformBadge(source.platform)}
-                    {source.channel_name && (
-                      <span className="text-xs text-muted-foreground truncate max-w-[100px]" title={source.channel_name}>
-                        {source.channel_name}
-                      </span>
-                    )}
-                  </div>
-                ) : (
-                  <Badge variant="outline">Unknown</Badge>
-                )}
-              </TableCell>
-            </TableRow>
-          );
-        })}
-      </TableBody>
-    </Table>
+
+                {/* Published */}
+                <div className="w-[120px] flex-shrink-0 text-muted-foreground">
+                  {dateInfo.loading ? (
+                    <span className="flex items-center gap-1 text-muted-foreground/60">
+                      <Clock className="h-3 w-3 animate-pulse" />
+                      <span className="text-xs">{dateInfo.text}</span>
+                    </span>
+                  ) : (
+                    dateInfo.text
+                  )}
+                </div>
+
+                {/* Source */}
+                <div className="w-[120px] flex-shrink-0">
+                  {source ? (
+                    <div className="flex flex-col gap-1">
+                      {getPlatformBadge(source.platform)}
+                      {source.channel_name && (
+                        <span className="text-xs text-muted-foreground truncate max-w-[100px]" title={source.channel_name}>
+                          {source.channel_name}
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <Badge variant="outline">Unknown</Badge>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
   );
 }

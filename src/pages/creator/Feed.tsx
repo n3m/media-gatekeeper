@@ -8,7 +8,6 @@ import { useFeedItems } from "@/hooks/useFeedItems";
 import { useSources } from "@/hooks/useSources";
 import { useSyncEvents, useSync } from "@/hooks/useSyncEvents";
 import { useDownloadEvents, useDownload } from "@/hooks/useDownloadEvents";
-import { useVisibleItems } from "@/hooks/useVisibleItems";
 import { useMetadataEvents } from "@/hooks/useMetadataEvents";
 import { api } from "@/lib/tauri";
 import type { FeedItem, SyncEvent, MetadataEvent } from "@/types/feed-item";
@@ -54,8 +53,8 @@ export function Feed({ creatorId }: FeedProps) {
   const [_isSearching, setIsSearching] = useState(false);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Visibility tracking for progressive metadata loading
-  const { registerRow, visibleIds } = useVisibleItems({ debounceMs: 300 });
+  // Visibility tracking for progressive metadata loading (from virtualized table)
+  const [visibleIds, setVisibleIds] = useState<Set<string>>(new Set());
 
   // Metadata events hook - no refetch on completion to avoid loading flicker
   const { fetchMetadata } = useMetadataEvents({
@@ -337,7 +336,7 @@ export function Feed({ creatorId }: FeedProps) {
         onToggleSelect={handleToggleSelect}
         onSelectAll={handleSelectAll}
         downloadProgress={downloadProgress}
-        onRegisterRow={registerRow}
+        onVisibleItemsChange={setVisibleIds}
       />
     </div>
   );
