@@ -45,6 +45,8 @@ pnpm run build
 - Toast notifications for sync/download events
 - **OS notifications** for sync completion and downloads
 - Feed view with filters - Filter by source, status, search; multi-select
+  - **Virtualized table** - Handles 4.5k+ items efficiently via @tanstack/react-virtual
+  - **Progressive metadata loading** - Fetches metadata on-demand for visible items
 - Download Manager - Queue-based downloads via yt-dlp with progress streaming
 - Real-time download progress in Feed table
 - Warehouse view - View downloaded videos with filters, sorting, search
@@ -100,11 +102,13 @@ n3ms-media-gatekeeper/
 │   │   │   ├── settings.rs         # AppSettings get/update
 │   │   │   ├── shell.rs            # Open in player, show in folder
 │   │   │   ├── search.rs           # FTS5 search commands
-│   │   │   └── notifications.rs    # OS notification commands
+│   │   │   ├── notifications.rs    # OS notification commands
+│   │   │   └── metadata.rs         # Metadata fetch commands
 │   │   ├── workers/
 │   │   │   ├── mod.rs
-│   │   │   ├── sync_manager.rs     # Background sync with Tauri events
-│   │   │   └── download_manager.rs # Download queue with progress
+│   │   │   ├── sync_manager.rs     # Background sync with Tauri events (manual only)
+│   │   │   ├── download_manager.rs # Download queue with progress
+│   │   │   └── metadata_worker.rs  # Progressive metadata fetching
 │   │   └── services/
 │   │       ├── mod.rs
 │   │       └── youtube.rs          # yt-dlp integration
@@ -123,7 +127,7 @@ n3ms-media-gatekeeper/
 │   │   │   ├── AddSourceDialog.tsx # Add YouTube/Patreon source
 │   │   │   └── SourcesTable.tsx    # Sources list with sync controls
 │   │   ├── feed/
-│   │   │   ├── FeedTable.tsx       # Feed items table with selection
+│   │   │   ├── FeedTable.tsx       # Virtualized feed table (@tanstack/react-virtual)
 │   │   │   ├── FeedFilters.tsx     # Source, status, search filters
 │   │   │   └── FeedActions.tsx     # Download Selected, Sync Now
 │   │   ├── warehouse/
@@ -154,14 +158,17 @@ n3ms-media-gatekeeper/
 │   │   ├── useDownloadEvents.ts    # Download event listeners + triggers
 │   │   ├── useWarehouseItems.ts    # Warehouse items CRUD hook
 │   │   ├── useBassBoost.ts         # Web Audio API bass boost hook
-│   │   └── useAppSettings.ts       # App settings hook
+│   │   ├── useAppSettings.ts       # App settings hook
+│   │   └── useMetadataEvents.ts    # Metadata event listeners + fetch triggers
 │   ├── types/
 │   │   ├── creator.ts
 │   │   ├── source.ts
-│   │   ├── feed-item.ts
+│   │   ├── feed-item.ts            # FeedItem + MetadataEvent types
 │   │   ├── download.ts             # Download event types
 │   │   ├── warehouse-item.ts       # WarehouseItem type
-│   │   └── app-settings.ts         # AppSettings type
+│   │   ├── app-settings.ts         # AppSettings type
+│   │   ├── credential.ts           # Credential type
+│   │   └── search.ts               # Search result types
 │   ├── lib/
 │   │   ├── tauri.ts                # Tauri invoke wrapper (api object)
 │   │   └── utils.ts                # cn() helper for Tailwind
@@ -182,6 +189,7 @@ n3ms-media-gatekeeper/
 | Frontend | React 19 + Vite + TypeScript |
 | Styling | Tailwind CSS v4 + shadcn/ui |
 | Database | SQLite (rusqlite, WAL mode) |
+| Virtualization | @tanstack/react-virtual |
 | Package Manager | pnpm |
 | Notifications | sonner |
 
@@ -258,6 +266,12 @@ FTS5 Virtual Tables (auto-synced via triggers):
 - `request_notification_permission()` → `String` (permission state)
 - `send_test_notification()` → `void`
 
+### Metadata
+- `fetch_feed_items_metadata(feedItemIds: Vec<String>)` → triggers immediate metadata fetch
+- `get_incomplete_metadata_items(creatorId, limit?)` → `String[]` (feed item IDs)
+- `pause_metadata_worker()` → pauses background metadata processing
+- `resume_metadata_worker()` → resumes background metadata processing
+
 ## Tauri Events (Backend → Frontend)
 
 ### Sync Events
@@ -271,7 +285,10 @@ FTS5 Virtual Tables (auto-synced via triggers):
 - `download_completed` - `{ feed_item_id, warehouse_item_id }`
 - `download_error` - `{ feed_item_id, error }`
 
-Listen with `useSyncEvents`, `useDownloadEvents` hooks or `@tauri-apps/api/event`.
+### Metadata Events
+- `metadata_update` - `{ feed_item_id, status: "started" | "completed" | "error", message? }`
+
+Listen with `useSyncEvents`, `useDownloadEvents`, `useMetadataEvents` hooks or `@tauri-apps/api/event`.
 
 ## React Hooks
 
@@ -289,6 +306,7 @@ Listen with `useSyncEvents`, `useDownloadEvents` hooks or `@tauri-apps/api/event
 | `useAppSettings()` | App settings CRUD, returns `{ settings, loading, error, refetch, updateSettings }` |
 | `useSearch()` | Global FTS search, returns `{ query, setQuery, results, loading, error, clearResults }` |
 | `useCreatorSearch(creatorId)` | Search within creator, returns `{ query, setQuery, feedItemResults, warehouseItemResults, loading, error }` |
+| `useMetadataEvents(options)` | Listen to metadata events with callbacks `{ onMetadataStarted, onMetadataCompleted, onMetadataError }`, returns `{ fetchMetadata, getIncompleteItems, pauseWorker, resumeWorker }` |
 
 ## API Wrapper
 
@@ -303,14 +321,21 @@ const source = await api.sources.create({ creator_id, platform: "youtube", chann
 await api.sync.source(sourceId);
 ```
 
-## Background Sync
+## Background Workers
 
-The sync worker (`src-tauri/src/workers/sync_manager.rs`):
+### Sync Manager (`src-tauri/src/workers/sync_manager.rs`)
 - Starts automatically on app launch
-- Runs every 5 minutes (300 seconds)
-- Uses `tokio::select!` to handle both periodic and manual syncs
+- **Auto-sync disabled** - only processes manual sync commands
+- Uses `tokio::select!` to handle sync commands
 - Emits Tauri events for UI updates
 - YouTube sync uses yt-dlp with `--flat-playlist --dump-json` (fetches up to 50 videos)
+
+### Metadata Worker (`src-tauri/src/workers/metadata_worker.rs`)
+- Fetches detailed metadata (published date, duration, thumbnail) for feed items
+- Background processing every 5 seconds (5 items per batch)
+- On-demand fetching triggered by visible items in Feed table
+- Published column shows: "Pending" → "Loading..." → actual date
+- Uses yt-dlp for both YouTube and Patreon metadata
 
 ## Design Document
 

@@ -56,15 +56,34 @@ export function Feed({ creatorId }: FeedProps) {
   // Visibility tracking for progressive metadata loading (from virtualized table)
   const [visibleIds, setVisibleIds] = useState<Set<string>>(new Set());
 
-  // Metadata events hook - no refetch on completion to avoid loading flicker
+  // Track which items are actively being fetched (for "Loading" vs "Pending" display)
+  const [loadingMetadataIds, setLoadingMetadataIds] = useState<Set<string>>(new Set());
+
+  // Metadata events hook
   const { fetchMetadata } = useMetadataEvents({
+    onMetadataStarted: useCallback((event: MetadataEvent) => {
+      setLoadingMetadataIds((prev) => new Set([...prev, event.feed_item_id]));
+    }, []),
+    onMetadataCompleted: useCallback((event: MetadataEvent) => {
+      setLoadingMetadataIds((prev) => {
+        const next = new Set(prev);
+        next.delete(event.feed_item_id);
+        return next;
+      });
+      // Refetch to update the UI with new metadata
+      refetchFeed();
+    }, [refetchFeed]),
     onMetadataError: useCallback((event: MetadataEvent) => {
       console.error("Metadata fetch failed:", event.message);
+      setLoadingMetadataIds((prev) => {
+        const next = new Set(prev);
+        next.delete(event.feed_item_id);
+        return next;
+      });
     }, []),
   });
 
-  // Track pending metadata fetches to avoid duplicates
-  const pendingMetadataFetchesRef = useRef<Set<string>>(new Set());
+  // Debounce ref for metadata fetching
   const metadataFetchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Fetch metadata for visible incomplete items
@@ -73,11 +92,11 @@ export function Feed({ creatorId }: FeedProps) {
       clearTimeout(metadataFetchDebounceRef.current);
     }
 
-    // Find visible items that need metadata
+    // Find visible items that need metadata and aren't already loading
     const incompleteVisibleIds: string[] = [];
     visibleIds.forEach((id) => {
       const item = feedItems.find((i) => i.id === id);
-      if (item && !item.metadata_complete && !pendingMetadataFetchesRef.current.has(id)) {
+      if (item && !item.metadata_complete && !loadingMetadataIds.has(id)) {
         incompleteVisibleIds.push(id);
       }
     });
@@ -88,18 +107,19 @@ export function Feed({ creatorId }: FeedProps) {
 
     // Debounce the fetch request
     metadataFetchDebounceRef.current = setTimeout(async () => {
-      // Mark items as pending
-      incompleteVisibleIds.forEach((id) => pendingMetadataFetchesRef.current.add(id));
+      // Immediately mark as loading to prevent duplicate fetches
+      setLoadingMetadataIds((prev) => new Set([...prev, ...incompleteVisibleIds]));
 
       try {
         await fetchMetadata(incompleteVisibleIds);
       } catch (err) {
         console.error("Failed to fetch metadata:", err);
-      } finally {
-        // Remove from pending after a delay (to allow for event processing)
-        setTimeout(() => {
-          incompleteVisibleIds.forEach((id) => pendingMetadataFetchesRef.current.delete(id));
-        }, 5000);
+        // On error, remove from loading so they can be retried
+        setLoadingMetadataIds((prev) => {
+          const next = new Set(prev);
+          incompleteVisibleIds.forEach((id) => next.delete(id));
+          return next;
+        });
       }
     }, 500);
 
@@ -108,7 +128,7 @@ export function Feed({ creatorId }: FeedProps) {
         clearTimeout(metadataFetchDebounceRef.current);
       }
     };
-  }, [visibleIds, feedItems, fetchMetadata]);
+  }, [visibleIds, feedItems, loadingMetadataIds, fetchMetadata]);
 
   // Perform FTS search when query changes
   useEffect(() => {
@@ -336,6 +356,7 @@ export function Feed({ creatorId }: FeedProps) {
         onToggleSelect={handleToggleSelect}
         onSelectAll={handleSelectAll}
         downloadProgress={downloadProgress}
+        loadingMetadataIds={loadingMetadataIds}
         onVisibleItemsChange={setVisibleIds}
       />
     </div>

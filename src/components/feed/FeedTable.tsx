@@ -17,6 +17,8 @@ interface FeedTableProps {
   onToggleSelect: (id: string) => void;
   onSelectAll: (ids: string[]) => void;
   downloadProgress?: Map<string, DownloadProgress>;
+  /** IDs of items actively being fetched for metadata */
+  loadingMetadataIds?: Set<string>;
   /** Callback when visible items change (for progressive metadata loading) */
   onVisibleItemsChange?: (visibleIds: Set<string>) => void;
 }
@@ -66,10 +68,20 @@ function getPlatformBadge(platform: Source["platform"]) {
   }
 }
 
-function formatRelativeDate(dateString: string | null, metadataComplete: boolean): { text: string; loading: boolean } {
+function formatRelativeDate(
+  dateString: string | null,
+  metadataComplete: boolean,
+  isLoadingMetadata: boolean
+): { text: string; status: "loaded" | "loading" | "pending" } {
   if (!dateString) {
-    // Show loading state if metadata is incomplete
-    return { text: metadataComplete ? "Unknown" : "Loading...", loading: !metadataComplete };
+    if (metadataComplete) {
+      return { text: "Unknown", status: "loaded" };
+    }
+    // Distinguish between actively loading and pending
+    return {
+      text: isLoadingMetadata ? "Loading..." : "Pending",
+      status: isLoadingMetadata ? "loading" : "pending",
+    };
   }
 
   const date = new Date(dateString);
@@ -93,7 +105,7 @@ function formatRelativeDate(dateString: string | null, metadataComplete: boolean
     text = date.toLocaleDateString();
   }
 
-  return { text, loading: false };
+  return { text, status: "loaded" };
 }
 
 function ThumbnailImage({ url, title }: { url: string | null; title: string }) {
@@ -129,6 +141,7 @@ export function FeedTable({
   onToggleSelect,
   onSelectAll,
   downloadProgress,
+  loadingMetadataIds,
   onVisibleItemsChange,
 }: FeedTableProps) {
   const parentRef = useRef<HTMLDivElement>(null);
@@ -206,7 +219,8 @@ export function FeedTable({
             const item = items[virtualRow.index];
             const source = sourceMap.get(item.source_id);
             const isSelected = selectedIds.has(item.id);
-            const dateInfo = formatRelativeDate(item.published_at, item.metadata_complete);
+            const isLoadingMetadata = loadingMetadataIds?.has(item.id) ?? false;
+            const dateInfo = formatRelativeDate(item.published_at, item.metadata_complete, isLoadingMetadata);
 
             return (
               <div
@@ -244,11 +258,13 @@ export function FeedTable({
 
                 {/* Published */}
                 <div className="w-[120px] flex-shrink-0 text-muted-foreground">
-                  {dateInfo.loading ? (
+                  {dateInfo.status === "loading" ? (
                     <span className="flex items-center gap-1 text-muted-foreground/60">
                       <Clock className="h-3 w-3 animate-pulse" />
                       <span className="text-xs">{dateInfo.text}</span>
                     </span>
+                  ) : dateInfo.status === "pending" ? (
+                    <span className="text-xs text-muted-foreground/40">{dateInfo.text}</span>
                   ) : (
                     dateInfo.text
                   )}
