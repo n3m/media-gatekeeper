@@ -52,6 +52,7 @@ struct DownloadInfo {
     creator_name: String,
     published_at: Option<String>,
     duration: Option<i64>,
+    credential_id: Option<String>,
 }
 
 pub struct DownloadManager {
@@ -171,9 +172,18 @@ impl DownloadManager {
         // Update status to downloading
         Self::update_feed_item_status(app_handle, feed_item_id, "downloading");
 
-        // Build video URL
-        let video_url = match info.platform.as_str() {
-            "youtube" => format!("https://www.youtube.com/watch?v={}", info.external_id),
+        // Build video URL and get cookie path if needed
+        let (video_url, cookie_path) = match info.platform.as_str() {
+            "youtube" => (format!("https://www.youtube.com/watch?v={}", info.external_id), None),
+            "patreon" => {
+                let cookie_path = Self::get_cookie_path(app_handle, info.credential_id.as_deref());
+                if cookie_path.is_none() {
+                    Self::emit_error(app_handle, feed_item_id, "No credential configured for Patreon. Please add a cookie file in Settings.");
+                    Self::update_feed_item_status(app_handle, feed_item_id, "error");
+                    return;
+                }
+                (format!("https://www.patreon.com/posts/{}", info.external_id), cookie_path)
+            }
             _ => {
                 Self::emit_error(app_handle, feed_item_id, &format!("Unsupported platform: {}", info.platform));
                 Self::update_feed_item_status(app_handle, feed_item_id, "error");
@@ -198,7 +208,7 @@ impl DownloadManager {
             let feed_item_id = feed_item_id.to_string();
             let cancelled = cancelled.clone();
             move || {
-                Self::run_ytdlp_download(&app_handle, &feed_item_id, &video_url, &output_path_for_download, &cancelled, &ytdlp_path)
+                Self::run_ytdlp_download(&app_handle, &feed_item_id, &video_url, &output_path_for_download, &cancelled, &ytdlp_path, cookie_path.as_deref())
             }
         })
         .await;
@@ -267,6 +277,7 @@ impl DownloadManager {
         output_path: &str,
         cancelled: &Arc<Mutex<HashSet<String>>>,
         ytdlp_path: &PathBuf,
+        cookie_path: Option<&str>,
     ) -> Result<(), String> {
         let mut cmd = Command::new(ytdlp_path);
         cmd.args([
@@ -276,10 +287,16 @@ impl DownloadManager {
             output_path,
             "--newline",
             "--no-warnings",
-            video_url,
-        ])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
+        ]);
+
+        // Add cookie authentication if provided
+        if let Some(cookies) = cookie_path {
+            cmd.args(["--cookies", cookies]);
+        }
+
+        cmd.arg(video_url)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
 
         #[cfg(target_os = "windows")]
         cmd.creation_flags(CREATE_NO_WINDOW);
@@ -364,7 +381,8 @@ impl DownloadManager {
                 fi.duration,
                 s.platform,
                 s.creator_id,
-                c.name
+                c.name,
+                s.credential_id
              FROM feed_items fi
              JOIN sources s ON fi.source_id = s.id
              JOIN creators c ON s.creator_id = c.id
@@ -379,12 +397,13 @@ impl DownloadManager {
                     row.get::<_, String>(4)?,
                     row.get::<_, String>(5)?,
                     row.get::<_, String>(6)?,
+                    row.get::<_, Option<String>>(7)?,
                 ))
             },
         );
 
         match result {
-            Ok((external_id, title, published_at, duration, platform, creator_id, creator_name)) => {
+            Ok((external_id, title, published_at, duration, platform, creator_id, creator_name, credential_id)) => {
                 Ok(DownloadInfo {
                     external_id,
                     title,
@@ -393,6 +412,7 @@ impl DownloadManager {
                     creator_name,
                     published_at,
                     duration,
+                    credential_id,
                 })
             }
             Err(e) => Err(format!("Feed item not found: {}", e)),
@@ -409,6 +429,28 @@ impl DownloadManager {
             |row| row.get(0),
         )
         .map_err(|e| format!("Failed to get library_path: {}", e))
+    }
+
+    fn get_cookie_path(app_handle: &AppHandle, credential_id: Option<&str>) -> Option<String> {
+        let db = app_handle.state::<Database>();
+        let conn = db.conn.lock().ok()?;
+
+        match credential_id {
+            Some(cred_id) => conn
+                .query_row(
+                    "SELECT cookie_path FROM credentials WHERE id = ?",
+                    [cred_id],
+                    |row| row.get(0),
+                )
+                .ok(),
+            None => conn
+                .query_row(
+                    "SELECT cookie_path FROM credentials WHERE platform = 'patreon' AND is_default = 1",
+                    [],
+                    |row| row.get(0),
+                )
+                .ok(),
+        }
     }
 
     fn sanitize_filename(name: &str) -> String {
@@ -466,6 +508,7 @@ impl DownloadManager {
         let now = chrono::Utc::now().to_rfc3339();
         let original_url = match info.platform.as_str() {
             "youtube" => Some(format!("https://www.youtube.com/watch?v={}", info.external_id)),
+            "patreon" => Some(format!("https://www.patreon.com/posts/{}", info.external_id)),
             _ => None,
         };
 
