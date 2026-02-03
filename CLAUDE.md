@@ -29,7 +29,13 @@ pnpm dev
 pnpm run build
 ```
 
-**Note:** yt-dlp is bundled with the app as a sidecar binary. Run `./scripts/download-ytdlp.sh` to download binaries for all platforms, or manually download for your platform to `src-tauri/binaries/`.
+**Note:** yt-dlp and ffmpeg are bundled with the app as sidecar binaries:
+```bash
+./scripts/download-ytdlp.sh   # Download yt-dlp for current platform
+./scripts/download-ffmpeg.sh  # Download ffmpeg for current platform
+./scripts/download-ytdlp.sh --all   # Download for all platforms
+./scripts/download-ffmpeg.sh --all  # Download for all platforms
+```
 
 ## Current Status
 

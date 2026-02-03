@@ -1,6 +1,6 @@
 use crate::commands::notifications::{notify_download_completed, notify_download_failed};
 use crate::db::Database;
-use crate::services::get_ytdlp_path;
+use crate::services::{get_ffmpeg_path, get_ytdlp_path};
 use std::collections::HashSet;
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
@@ -201,6 +201,9 @@ impl DownloadManager {
             }
         };
 
+        // Get ffmpeg path (optional, for merging video+audio)
+        let ffmpeg_path = get_ffmpeg_path(app_handle).ok();
+
         // Run yt-dlp download
         let output_path_for_download = output_path.clone();
         let result = tokio::task::spawn_blocking({
@@ -208,7 +211,7 @@ impl DownloadManager {
             let feed_item_id = feed_item_id.to_string();
             let cancelled = cancelled.clone();
             move || {
-                Self::run_ytdlp_download(&app_handle, &feed_item_id, &video_url, &output_path_for_download, &cancelled, &ytdlp_path, cookie_path.as_deref())
+                Self::run_ytdlp_download(&app_handle, &feed_item_id, &video_url, &output_path_for_download, &cancelled, &ytdlp_path, cookie_path.as_deref(), ffmpeg_path.as_ref())
             }
         })
         .await;
@@ -270,16 +273,6 @@ impl DownloadManager {
         }
     }
 
-    fn is_ffmpeg_available() -> bool {
-        Command::new("ffmpeg")
-            .arg("-version")
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()
-            .map(|s| s.success())
-            .unwrap_or(false)
-    }
-
     fn run_ytdlp_download(
         app_handle: &AppHandle,
         feed_item_id: &str,
@@ -288,19 +281,20 @@ impl DownloadManager {
         cancelled: &Arc<Mutex<HashSet<String>>>,
         ytdlp_path: &PathBuf,
         cookie_path: Option<&str>,
+        ffmpeg_path: Option<&PathBuf>,
     ) -> Result<(), String> {
         let mut cmd = Command::new(ytdlp_path);
 
-        // Check if ffmpeg is available for merging separate streams
-        let has_ffmpeg = Self::is_ffmpeg_available();
-
-        if has_ffmpeg {
+        // If ffmpeg is available (bundled or system), use best quality with merge
+        if let Some(ffmpeg) = ffmpeg_path {
             // Best quality: download separate video+audio and merge with ffmpeg
             cmd.args([
                 "-f",
                 "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best",
                 "--merge-output-format", "mp4",
+                "--ffmpeg-location",
             ]);
+            cmd.arg(ffmpeg);
         } else {
             // No ffmpeg: use pre-muxed format (single file, may be lower quality)
             cmd.args([
