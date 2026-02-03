@@ -335,11 +335,13 @@ impl SyncManager {
                 .as_ref()
                 .and_then(|d| PatreonFetcher::parse_upload_date(d));
             let duration = post.duration.map(|d| d as i64);
+            // If title is from URL slug fallback, mark as incomplete so metadata worker fetches real title
+            let metadata_complete = !post.title_is_fallback;
 
             let result = conn.execute(
-                "INSERT OR IGNORE INTO feed_items (id, source_id, external_id, title, thumbnail_url, published_at, duration, download_status, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, 'not_downloaded', ?)",
-                (&id, source_id, &post.id, &post.title, &post.thumbnail, &published_at, &duration, &now),
+                "INSERT OR IGNORE INTO feed_items (id, source_id, external_id, title, thumbnail_url, published_at, duration, download_status, metadata_complete, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, 'not_downloaded', ?, ?)",
+                (&id, source_id, &post.id, &post.title, &post.thumbnail, &published_at, &duration, &metadata_complete, &now),
             );
 
             if let Ok(rows) = result {

@@ -35,8 +35,11 @@ pub fn show_in_folder(file_path: String) -> Result<(), String> {
     // Use platform-specific command to reveal file in folder
     #[cfg(target_os = "windows")]
     {
+        // Windows explorer needs /select, and path as single argument
+        // Also convert forward slashes to backslashes for Windows
+        let windows_path = file_path.replace("/", "\\");
         Command::new("explorer")
-            .args(["/select,", &file_path])
+            .arg(format!("/select,{}", windows_path))
             .spawn()
             .map_err(|e| e.to_string())?;
     }

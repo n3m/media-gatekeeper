@@ -382,7 +382,7 @@ FTS5 Virtual Tables (auto-synced via triggers):
 - `send_test_notification()` → `void`
 
 ### Metadata
-- `fetch_feed_items_metadata(feedItemIds: Vec<String>)` → triggers immediate metadata fetch
+- `fetch_feed_items_metadata(feedItemIds: Vec<String>)` → triggers immediate metadata fetch (also updates title for Patreon)
 - `get_incomplete_metadata_items(creatorId, limit?)` → `String[]` (feed item IDs)
 - `pause_metadata_worker()` → pauses background metadata processing
 - `resume_metadata_worker()` → resumes background metadata processing

@@ -15,6 +15,9 @@ pub struct PatreonPost {
     pub thumbnail: Option<String>,
     pub duration: Option<f64>,
     pub upload_date: Option<String>,
+    /// True if title was extracted from URL slug (not the real title)
+    #[serde(default)]
+    pub title_is_fallback: bool,
 }
 
 pub struct PatreonFetcher;
@@ -90,38 +93,40 @@ impl PatreonFetcher {
                             return None;
                         }
 
-                        // Try to get title, fall back to webpage_url_basename
-                        let title = v["title"]
-                            .as_str()
-                            .map(|s| s.to_string())
-                            .or_else(|| {
-                                // Extract title from webpage_url_basename (e.g., "lollipop-sucking-23710390")
-                                v["webpage_url_basename"].as_str().map(|basename| {
-                                    // Remove the trailing ID (last segment after final dash if it's numeric)
-                                    let parts: Vec<&str> = basename.rsplitn(2, '-').collect();
-                                    let title_slug = if parts.len() == 2 && parts[0].parse::<u64>().is_ok() {
-                                        parts[1]
-                                    } else {
-                                        basename
-                                    };
-                                    // Convert dashes to spaces and capitalize
-                                    title_slug
-                                        .replace('-', " ")
-                                        .split_whitespace()
-                                        .map(|word| {
-                                            let mut chars = word.chars();
-                                            match chars.next() {
-                                                None => String::new(),
-                                                Some(first) => {
-                                                    first.to_uppercase().chain(chars).collect()
-                                                }
+                        // Try to get title from yt-dlp response
+                        let real_title = v["title"].as_str().map(|s| s.to_string());
+
+                        // Fall back to webpage_url_basename if no real title
+                        let (title, title_is_fallback) = if let Some(t) = real_title {
+                            (t, false)
+                        } else {
+                            // Extract title from webpage_url_basename (e.g., "lollipop-sucking-23710390")
+                            let fallback = v["webpage_url_basename"].as_str().map(|basename| {
+                                // Remove the trailing ID (last segment after final dash if it's numeric)
+                                let parts: Vec<&str> = basename.rsplitn(2, '-').collect();
+                                let title_slug = if parts.len() == 2 && parts[0].parse::<u64>().is_ok() {
+                                    parts[1]
+                                } else {
+                                    basename
+                                };
+                                // Convert dashes to spaces and capitalize
+                                title_slug
+                                    .replace('-', " ")
+                                    .split_whitespace()
+                                    .map(|word| {
+                                        let mut chars = word.chars();
+                                        match chars.next() {
+                                            None => String::new(),
+                                            Some(first) => {
+                                                first.to_uppercase().chain(chars).collect()
                                             }
-                                        })
-                                        .collect::<Vec<_>>()
-                                        .join(" ")
-                                })
-                            })
-                            .unwrap_or_default();
+                                        }
+                                    })
+                                    .collect::<Vec<_>>()
+                                    .join(" ")
+                            });
+                            (fallback.unwrap_or_default(), true)
+                        };
 
                         if title.is_empty() {
                             return None;
@@ -130,6 +135,7 @@ impl PatreonFetcher {
                         Some(PatreonPost {
                             id,
                             title,
+                            title_is_fallback,
                             thumbnail: v["thumbnail"]
                                 .as_str()
                                 .map(|s| s.to_string())
@@ -203,35 +209,37 @@ impl PatreonFetcher {
             .and_then(|v| {
                 let id = v["id"].as_str().unwrap_or(post_id).to_string();
 
-                // Try to get title, fall back to webpage_url_basename
-                let title = v["title"]
-                    .as_str()
-                    .map(|s| s.to_string())
-                    .or_else(|| {
-                        v["webpage_url_basename"].as_str().map(|basename| {
-                            let parts: Vec<&str> = basename.rsplitn(2, '-').collect();
-                            let title_slug = if parts.len() == 2 && parts[0].parse::<u64>().is_ok() {
-                                parts[1]
-                            } else {
-                                basename
-                            };
-                            title_slug
-                                .replace('-', " ")
-                                .split_whitespace()
-                                .map(|word| {
-                                    let mut chars = word.chars();
-                                    match chars.next() {
-                                        None => String::new(),
-                                        Some(first) => {
-                                            first.to_uppercase().chain(chars).collect()
-                                        }
+                // Try to get title from yt-dlp response (should work for individual posts)
+                let real_title = v["title"].as_str().map(|s| s.to_string());
+
+                let (title, title_is_fallback) = if let Some(t) = real_title {
+                    (t, false)
+                } else {
+                    // Fall back to webpage_url_basename
+                    let fallback = v["webpage_url_basename"].as_str().map(|basename| {
+                        let parts: Vec<&str> = basename.rsplitn(2, '-').collect();
+                        let title_slug = if parts.len() == 2 && parts[0].parse::<u64>().is_ok() {
+                            parts[1]
+                        } else {
+                            basename
+                        };
+                        title_slug
+                            .replace('-', " ")
+                            .split_whitespace()
+                            .map(|word| {
+                                let mut chars = word.chars();
+                                match chars.next() {
+                                    None => String::new(),
+                                    Some(first) => {
+                                        first.to_uppercase().chain(chars).collect()
                                     }
-                                })
-                                .collect::<Vec<_>>()
-                                .join(" ")
-                        })
-                    })
-                    .unwrap_or_default();
+                                }
+                            })
+                            .collect::<Vec<_>>()
+                            .join(" ")
+                    });
+                    (fallback.unwrap_or_default(), true)
+                };
 
                 if title.is_empty() {
                     return Err("Could not extract title from response".to_string());
@@ -240,6 +248,7 @@ impl PatreonFetcher {
                 Ok(PatreonPost {
                     id,
                     title,
+                    title_is_fallback,
                     thumbnail: v["thumbnail"]
                         .as_str()
                         .map(|s| s.to_string())

@@ -203,6 +203,7 @@ impl MetadataWorker {
                                 video.upload_date.and_then(|d| YouTubeFetcher::parse_upload_date(&d)),
                                 video.duration.map(|d| d as i64),
                                 video.thumbnail,
+                                None, // YouTube already has real titles from sync
                             )
                         })
                 })
@@ -229,10 +230,13 @@ impl MetadataWorker {
                 tokio::task::spawn_blocking(move || {
                     PatreonFetcher::fetch_post_metadata(&external_id, &cookie_path, &ytdlp)
                         .map(|post| {
+                            // Include title if it's a real title (not fallback)
+                            let title = if post.title_is_fallback { None } else { Some(post.title) };
                             (
                                 post.upload_date.and_then(|d| PatreonFetcher::parse_upload_date(&d)),
                                 post.duration.map(|d| d as i64),
                                 post.thumbnail,
+                                title,
                             )
                         })
                 })
@@ -247,9 +251,9 @@ impl MetadataWorker {
         };
 
         match result {
-            Ok((published_at, duration, thumbnail)) => {
-                // Update feed item with metadata
-                Self::update_feed_item_metadata(app_handle, feed_item_id, published_at, duration, thumbnail);
+            Ok((published_at, duration, thumbnail, title)) => {
+                // Update feed item with metadata (and title if available)
+                Self::update_feed_item_metadata(app_handle, feed_item_id, published_at, duration, thumbnail, title);
 
                 let _ = app_handle.emit(
                     "metadata_update",
@@ -316,6 +320,7 @@ impl MetadataWorker {
         published_at: Option<String>,
         duration: Option<i64>,
         thumbnail: Option<String>,
+        title: Option<String>,
     ) {
         let db = app_handle.state::<Database>();
         let conn = match db.conn.lock() {
@@ -323,14 +328,16 @@ impl MetadataWorker {
             Err(_) => return,
         };
         // Update with new metadata and mark as complete
+        // Also update title if provided (for Patreon where initial title was from URL slug)
         let _ = conn.execute(
             "UPDATE feed_items SET
                 published_at = COALESCE(?, published_at),
                 duration = COALESCE(?, duration),
                 thumbnail_url = COALESCE(?, thumbnail_url),
+                title = COALESCE(?, title),
                 metadata_complete = 1
              WHERE id = ?",
-            rusqlite::params![published_at, duration, thumbnail, feed_item_id],
+            rusqlite::params![published_at, duration, thumbnail, title, feed_item_id],
         );
     }
 
