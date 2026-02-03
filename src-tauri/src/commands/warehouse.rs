@@ -111,7 +111,7 @@ fn get_library_path(db: &Database) -> Result<String, String> {
     let conn = db.conn.lock().map_err(|e| e.to_string())?;
 
     conn.query_row(
-        "SELECT value FROM app_settings WHERE key = 'library_path'",
+        "SELECT library_path FROM app_settings WHERE id = 1",
         [],
         |row| row.get(0),
     )
