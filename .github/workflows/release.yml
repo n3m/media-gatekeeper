@@ -76,6 +76,34 @@ jobs:
           chmod +x src-tauri/binaries/yt-dlp-aarch64-apple-darwin
           chmod +x src-tauri/binaries/yt-dlp-universal-apple-darwin
 
+      - name: Download ffmpeg (Linux)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: ./scripts/download-ffmpeg.sh
+
+      - name: Download ffmpeg (Windows)
+        if: matrix.platform == 'windows-latest'
+        shell: bash
+        run: |
+          mkdir -p src-tauri/binaries
+          curl -L -s https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip \
+            -o ffmpeg.zip
+          unzip -q ffmpeg.zip
+          cp ffmpeg-master-latest-win64-gpl/bin/ffmpeg.exe src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe
+          rm -rf ffmpeg.zip ffmpeg-master-latest-win64-gpl
+
+      - name: Download ffmpeg for macOS universal
+        if: matrix.platform == 'macos-latest'
+        run: |
+          curl -L -s https://evermeet.cx/ffmpeg/getrelease/zip -o ffmpeg.zip
+          unzip -q ffmpeg.zip
+          cp ffmpeg src-tauri/binaries/ffmpeg-x86_64-apple-darwin
+          cp ffmpeg src-tauri/binaries/ffmpeg-aarch64-apple-darwin
+          cp ffmpeg src-tauri/binaries/ffmpeg-universal-apple-darwin
+          chmod +x src-tauri/binaries/ffmpeg-x86_64-apple-darwin
+          chmod +x src-tauri/binaries/ffmpeg-aarch64-apple-darwin
+          chmod +x src-tauri/binaries/ffmpeg-universal-apple-darwin
+          rm -f ffmpeg.zip ffmpeg
+
       - name: Build and release
         uses: tauri-apps/tauri-action@v0
         env:
