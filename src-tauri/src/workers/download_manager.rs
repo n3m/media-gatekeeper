@@ -270,6 +270,16 @@ impl DownloadManager {
         }
     }
 
+    fn is_ffmpeg_available() -> bool {
+        Command::new("ffmpeg")
+            .arg("-version")
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false)
+    }
+
     fn run_ytdlp_download(
         app_handle: &AppHandle,
         feed_item_id: &str,
@@ -280,9 +290,26 @@ impl DownloadManager {
         cookie_path: Option<&str>,
     ) -> Result<(), String> {
         let mut cmd = Command::new(ytdlp_path);
+
+        // Check if ffmpeg is available for merging separate streams
+        let has_ffmpeg = Self::is_ffmpeg_available();
+
+        if has_ffmpeg {
+            // Best quality: download separate video+audio and merge with ffmpeg
+            cmd.args([
+                "-f",
+                "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best",
+                "--merge-output-format", "mp4",
+            ]);
+        } else {
+            // No ffmpeg: use pre-muxed format (single file, may be lower quality)
+            cmd.args([
+                "-f",
+                "best[ext=mp4]/best",
+            ]);
+        }
+
         cmd.args([
-            "-f",
-            "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
             "-o",
             output_path,
             "--newline",
